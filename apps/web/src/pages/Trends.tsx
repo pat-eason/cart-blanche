@@ -55,7 +55,7 @@ export default function Trends() {
           <section className="sheet">
             <h2>Grocery list makeup</h2>
             <p className="muted small" style={{ marginBottom: 8 }}>Items per aisle, week over week.</p>
-            <StackedBars height={220} data={s.weekly.map((w) => ({ label: shortWeek(w.weekStart), values: w.byCategory }))} keys={cats} colors={catColors} />
+            <StackedBars height={240} width={1000} data={s.weekly.map((w) => ({ label: shortWeek(w.weekStart), values: w.byCategory }))} keys={cats} colors={catColors} />
             <div className="legend">{cats.map((c) => <span key={c}><i style={{ background: catColors[c] }} />{c}</span>)}</div>
           </section>
 

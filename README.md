@@ -3,6 +3,10 @@
 A weekly menu and grocery planner with a paper-craft feel. Plan the week's dinners, turn them into a
 grocery list, check things off at the store, and look back at what you actually made.
 
+<p align="center">
+  <img src="docs/screenshots/plan.png" alt="Planning the week's menu, with suggestions and a running cost estimate" width="900">
+</p>
+
 **Stack:** React + TypeScript (Vite) · Go API (stdlib `net/http`) · SQLite (pure-Go driver, one file) · Docker Compose · pnpm workspace
 
 ```
@@ -10,6 +14,20 @@ apps/
   api/   Go API + SQLite (auth, household, recipes, menus, grocery, recommendations, stats)
   web/   React/TypeScript UI (desktop planning, mobile shopping)
 ```
+
+## Screenshots
+
+| Dashboard | Shopping list (phone) |
+|---|---|
+| <img src="docs/screenshots/dashboard.png" alt="Dashboard" width="560"> | <img src="docs/screenshots/shop-mobile.png" alt="Notepad-style grocery list on a phone" width="240"> |
+
+| Recipe box | History |
+|---|---|
+| <img src="docs/screenshots/recipes.png" alt="Recipe box" width="420"> | <img src="docs/screenshots/history.png" alt="History of past menus" width="420"> |
+
+<img src="docs/screenshots/trends.png" alt="Trends: weekly spend, planned vs cooked, grocery makeup" width="900">
+
+*(Screenshots use demo data.)*
 
 ## Run it with Docker (recommended)
 

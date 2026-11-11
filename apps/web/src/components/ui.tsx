@@ -82,11 +82,11 @@ export function TagInput({ value, onChange, placeholder }: { value: string[]; on
 }
 
 /** tiny stacked bar chart */
-export function StackedBars({ data, keys, colors, height = 180, fmt }: {
+export function StackedBars({ data, keys, colors, height = 180, width = 560, fmt }: {
   data: { label: string; values: Record<string, number>; marker?: number | null }[]
-  keys: string[]; colors: Record<string, string>; height?: number; fmt?: (n: number) => string
+  keys: string[]; colors: Record<string, string>; height?: number; width?: number; fmt?: (n: number) => string
 }) {
-  const w = 560, padL = 38, padB = 24, padT = 10
+  const w = width, padL = 38, padB = 24, padT = 10
   const totals = data.map((d) => keys.reduce((a, k) => a + (d.values[k] ?? 0), 0))
   const max = Math.max(1, ...totals, ...data.map((d) => d.marker ?? 0))
   const bw = (w - padL) / Math.max(data.length, 1)
