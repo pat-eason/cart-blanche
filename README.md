@@ -7,11 +7,11 @@ grocery list, check things off at the store, and look back at what you actually 
   <img src="docs/screenshots/plan.png" alt="Planning the week's menu, with suggestions and a running cost estimate" width="900">
 </p>
 
-**Stack:** React + TypeScript (Vite) · Go API (stdlib `net/http`) · SQLite (pure-Go driver, one file) · Docker Compose · pnpm workspace
+**Stack:** React + TypeScript (Vite) · Go API (stdlib `net/http`) · PostgreSQL · Docker Compose · pnpm workspace
 
 ```
 apps/
-  api/   Go API + SQLite (auth, household, recipes, menus, grocery, recommendations, stats)
+  api/   Go API + PostgreSQL (auth, household, recipes, menus, grocery, recommendations, stats)
   web/   React/TypeScript UI (desktop planning, mobile shopping)
 ```
 
@@ -37,7 +37,8 @@ docker compose up -d --build
 
 Open <http://localhost:8080>, create an account, then **Recipes → Load starter recipes** to try it out.
 Change the port with `WEB_PORT=3000 docker compose up -d --build` (or copy `.env.example` to `.env`).
-Data lives in the `cartblanche-data` volume (SQLite at `/data/cartblanche.db`) and survives restarts.
+(`docker-compose.prod.yml` is only for the droplet; locally you just use `docker-compose.yml`.)
+Data lives in PostgreSQL, in the `pgdata` Docker volume, and survives restarts and rebuilds (not `docker compose down -v`).
 
 ## Develop locally
 
@@ -45,7 +46,8 @@ Needs Go ≥ 1.22, Node ≥ 24, pnpm.
 
 ```bash
 pnpm install
-pnpm dev:api    # API on :8787 (data in apps/api/data/)
+pnpm dev:db     # Postgres in Docker, on 127.0.0.1:5433
+pnpm dev:api    # API on :8787
 pnpm dev:web    # UI on :5173, proxies /api to :8787
 ```
 
@@ -69,28 +71,62 @@ others can sign up into it; everything (recipes, ingredients, menus, lists) is s
 **Trends** – weekly spend vs. budget, planned vs. cooked, grocery makeup by aisle over time, top recipes, tags,
 meal types.
 
-## Deploy to a DigitalOcean droplet
+## Deploy to a DigitalOcean droplet (GitHub Actions)
 
-1. Create a droplet with the **Docker** marketplace image (or install Docker + the compose plugin).
-2. Copy the repo to the droplet and run, without a domain:
-   ```bash
-   WEB_PORT=80 docker compose up -d --build
-   ```
-3. With a domain pointing at the droplet (A record), get automatic HTTPS via Caddy:
-   ```bash
-   DOMAIN=menu.example.com COOKIE_SECURE=true docker compose --profile tls up -d --build
-   ```
-   (Leave `WEB_PORT` at its default so it doesn't collide with Caddy on 80.)
-4. **Back up** the `cartblanche-data` volume (it's one SQLite file), e.g.
-   `docker compose exec api sh -c 'cp /data/cartblanche.db /data/backup.db'` or snapshot the droplet.
+Cart Blanche shares a droplet with other apps. The server-level pieces (Docker, the `deploy` user, the firewall,
+the HTTPS reverse proxy and its certificates) live in a separate repo,
+`droplet-infra`. This repo only deploys its own containers and
+publishes its own hostname to that proxy.
 
-Sessions are HttpOnly cookies stored server-side; passwords are bcrypt-hashed. Set `COOKIE_SECURE=true`
-whenever you serve over HTTPS.
+Every push to `main` runs [.github/workflows/deploy.yml](.github/workflows/deploy.yml): typecheck and build →
+build the API and web images and push them to GitHub Container Registry → SSH to the droplet, pull the images,
+restart with `docker compose`, then register this app's domain with the shared proxy. Pull requests only run the
+first step. The droplet never builds anything, so a small one is fine.
+
+**Prerequisites (once)**
+
+1. Set up the droplet and proxy from `droplet-infra` (its README walks through it).
+2. As root on the droplet, give the deploy user this app's folder: `sudo install -d -o deploy -g deploy /opt/cart-blanche`.
+3. Make an SSH key pair for this repo (`ssh-keygen -t ed25519 -f deploy_key -N ""`) and append the public key to
+   `/home/deploy/.ssh/authorized_keys` on the droplet.
+4. In this repo's Settings → Secrets and variables → Actions:
+
+   | Kind | Name | Value |
+   |---|---|---|
+   | Secret | `DROPLET_HOST` | droplet IP or hostname |
+   | Secret | `DROPLET_USER` | `deploy` |
+   | Secret | `DROPLET_SSH_KEY` | contents of the private `deploy_key` |
+   | Secret | `DROPLET_KNOWN_HOSTS` | output of `ssh-keyscan -t ed25519 <droplet-ip>` |
+   | Secret | `DROPLET_SSH_PORT` | optional, defaults to 22 |
+   | Variable | `DOMAIN` | the hostname for this app, e.g. `menu.example.com` |
+
+5. Point that hostname's DNS A record at the droplet.
+
+Then push to `main` (or run the workflow from the Actions tab). The first deploy creates
+`/opt/cart-blanche/.env` with a random Postgres password. The deploy waits for the API's health check and fails
+with logs if it doesn't come up. Images are tagged with the commit SHA, so rolling back is re-running an older
+workflow run. Use the `production` environment's required reviewers if you want a manual approval gate.
+
+**How it plugs into the proxy** — [docker-compose.prod.yml](docker-compose.prod.yml) is layered over the
+normal compose file on the droplet: the web container joins the shared `proxy` network under the alias
+`cart-blanche-web`, nothing publishes host ports, and `COOKIE_SECURE` defaults to true. The hostname is published
+from [deploy/cart-blanche.caddy](deploy/cart-blanche.caddy) with `proxy-site install cart-blanche`, which validates
+the Caddy config and rolls back if it's invalid.
+
+**Data & backups** — Postgres lives in the `pgdata` volume on the droplet, so deploys don't touch it. Back it up
+with `pg_dump`, ideally from cron and copied off the droplet (and/or enable DigitalOcean droplet backups):
+
+```bash
+cd /opt/cart-blanche && COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml \
+  docker compose exec -T db pg_dump -U cartblanche cartblanche | gzip > cartblanche-$(date +%F).sql.gz
+```
+
+Sessions are HttpOnly cookies stored server-side; passwords are bcrypt-hashed.
 
 ## API configuration
 
 | Env | Default | |
 |---|---|---|
 | `ADDR` | `:8080` | listen address |
-| `DB_PATH` | `./data/cartblanche.db` | SQLite file |
+| `DATABASE_URL` | `postgres://cartblanche:cartblanche@localhost:5433/cartblanche?sslmode=disable` | Postgres connection string (compose sets this for you) |
 | `COOKIE_SECURE` | `false` | mark session cookie `Secure` |

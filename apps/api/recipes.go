@@ -18,7 +18,7 @@ type Ingredient struct {
 }
 
 func (s *server) listIngredients(w http.ResponseWriter, r *http.Request, u *User) (any, error) {
-	rows, err := s.db.Query(`SELECT id,name,unit,category,unit_cost FROM ingredients WHERE household_id=? ORDER BY category,name`, u.HouseholdID)
+	rows, err := s.db.Query(`SELECT id,name,unit,category,unit_cost FROM ingredients WHERE household_id=? ORDER BY category, lower(name)`, u.HouseholdID)
 	if err != nil {
 		return nil, err
 	}
@@ -58,15 +58,15 @@ func (s *server) createIngredient(w http.ResponseWriter, r *http.Request, u *Use
 	if err := cleanIngredient(&in); err != nil {
 		return nil, err
 	}
-	res, err := s.db.Exec(`INSERT INTO ingredients(household_id,name,unit,category,unit_cost) VALUES(?,?,?,?,?)`,
+	id, err := s.db.InsertID(`INSERT INTO ingredients(household_id,name,unit,category,unit_cost) VALUES(?,?,?,?,?)`,
 		u.HouseholdID, in.Name, in.Unit, in.Category, in.UnitCost)
 	if err != nil {
-		if strings.Contains(err.Error(), "UNIQUE") {
+		if isUnique(err) {
 			return nil, apiErr{http.StatusConflict, "you already have an ingredient with that name"}
 		}
 		return nil, err
 	}
-	in.ID, _ = res.LastInsertId()
+	in.ID = id
 	return in, nil
 }
 
@@ -85,7 +85,7 @@ func (s *server) updateIngredient(w http.ResponseWriter, r *http.Request, u *Use
 	res, err := s.db.Exec(`UPDATE ingredients SET name=?,unit=?,category=?,unit_cost=? WHERE id=? AND household_id=?`,
 		in.Name, in.Unit, in.Category, in.UnitCost, id, u.HouseholdID)
 	if err != nil {
-		if strings.Contains(err.Error(), "UNIQUE") {
+		if isUnique(err) {
 			return nil, apiErr{http.StatusConflict, "you already have an ingredient with that name"}
 		}
 		return nil, err
@@ -210,7 +210,7 @@ func (s *server) attachIngredients(recipes []*Recipe) error {
 }
 
 func (s *server) loadRecipes(hid int64, where string, args ...any) ([]*Recipe, error) {
-	rows, err := s.db.Query(recipeSelect+` WHERE r.household_id=? `+where+` ORDER BY r.name COLLATE NOCASE`, append([]any{hid}, args...)...)
+	rows, err := s.db.Query(recipeSelect+` WHERE r.household_id=? `+where+` ORDER BY lower(r.name)`, append([]any{hid}, args...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -281,12 +281,11 @@ func (s *server) saveRecipe(id int64, u *User, in *Recipe) (int64, error) {
 	defer tx.Rollback()
 
 	if id == 0 {
-		res, err := tx.Exec(`INSERT INTO recipes(household_id,name,description,meal_type,tags,prep_minutes,cook_minutes,servings,instructions,created_by)
+		id, err = tx.InsertID(`INSERT INTO recipes(household_id,name,description,meal_type,tags,prep_minutes,cook_minutes,servings,instructions,created_by)
 			VALUES(?,?,?,?,?,?,?,?,?,?)`, u.HouseholdID, in.Name, in.Description, in.MealType, string(tags), in.PrepMinutes, in.CookMinutes, in.Servings, in.Instructions, u.ID)
 		if err != nil {
 			return 0, err
 		}
-		id, _ = res.LastInsertId()
 	} else {
 		res, err := tx.Exec(`UPDATE recipes SET name=?,description=?,meal_type=?,tags=?,prep_minutes=?,cook_minutes=?,servings=?,instructions=? WHERE id=? AND household_id=?`,
 			in.Name, in.Description, in.MealType, string(tags), in.PrepMinutes, in.CookMinutes, in.Servings, in.Instructions, id, u.HouseholdID)

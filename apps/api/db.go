@@ -2,43 +2,48 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+	"strings"
+	"time"
 
-	_ "modernc.org/sqlite"
+	"github.com/jackc/pgx/v5/pgconn"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 const schema = `
 CREATE TABLE IF NOT EXISTS households (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   invite_code TEXT NOT NULL UNIQUE,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  id BIGSERIAL PRIMARY KEY,
+  email TEXT NOT NULL,
   name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
-  household_id INTEGER NOT NULL REFERENCES households(id),
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  household_id BIGINT NOT NULL REFERENCES households(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower ON users (lower(email));
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  expires_at TEXT NOT NULL
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL
 );
 CREATE TABLE IF NOT EXISTS ingredients (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  household_id INTEGER NOT NULL REFERENCES households(id),
-  name TEXT NOT NULL COLLATE NOCASE,
+  id BIGSERIAL PRIMARY KEY,
+  household_id BIGINT NOT NULL REFERENCES households(id),
+  name TEXT NOT NULL,
   unit TEXT NOT NULL DEFAULT '',
   category TEXT NOT NULL DEFAULT 'Pantry',
-  unit_cost REAL,
-  UNIQUE(household_id, name)
+  unit_cost DOUBLE PRECISION
 );
+CREATE UNIQUE INDEX IF NOT EXISTS ingredients_household_name ON ingredients (household_id, lower(name));
 CREATE TABLE IF NOT EXISTS recipes (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  household_id INTEGER NOT NULL REFERENCES households(id),
+  id BIGSERIAL PRIMARY KEY,
+  household_id BIGINT NOT NULL REFERENCES households(id),
   name TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   meal_type TEXT NOT NULL DEFAULT 'dinner',
@@ -48,65 +53,136 @@ CREATE TABLE IF NOT EXISTS recipes (
   servings INTEGER NOT NULL DEFAULT 2,
   instructions TEXT NOT NULL DEFAULT '',
   avoid INTEGER NOT NULL DEFAULT 0,
-  created_by INTEGER REFERENCES users(id),
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_by BIGINT REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS recipe_ingredients (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
-  ingredient_id INTEGER NOT NULL REFERENCES ingredients(id),
-  quantity REAL NOT NULL DEFAULT 1,
+  id BIGSERIAL PRIMARY KEY,
+  recipe_id BIGINT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+  ingredient_id BIGINT NOT NULL REFERENCES ingredients(id),
+  quantity DOUBLE PRECISION NOT NULL DEFAULT 1,
   note TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS menus (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  household_id INTEGER NOT NULL REFERENCES households(id),
+  id BIGSERIAL PRIMARY KEY,
+  household_id BIGINT NOT NULL REFERENCES households(id),
   title TEXT NOT NULL DEFAULT '',
   week_start TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'draft',
-  budget REAL,
+  budget DOUBLE PRECISION,
   notes TEXT NOT NULL DEFAULT '',
-  created_by INTEGER REFERENCES users(id),
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_by BIGINT REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(household_id, week_start)
 );
 CREATE TABLE IF NOT EXISTS menu_meals (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  menu_id INTEGER NOT NULL REFERENCES menus(id) ON DELETE CASCADE,
-  recipe_id INTEGER NOT NULL REFERENCES recipes(id),
+  id BIGSERIAL PRIMARY KEY,
+  menu_id BIGINT NOT NULL REFERENCES menus(id) ON DELETE CASCADE,
+  recipe_id BIGINT NOT NULL REFERENCES recipes(id),
   day INTEGER,
   slot TEXT NOT NULL DEFAULT 'dinner',
   status TEXT NOT NULL DEFAULT 'planned'
 );
 CREATE TABLE IF NOT EXISTS grocery_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  menu_id INTEGER NOT NULL REFERENCES menus(id) ON DELETE CASCADE,
-  ingredient_id INTEGER REFERENCES ingredients(id) ON DELETE SET NULL,
+  id BIGSERIAL PRIMARY KEY,
+  menu_id BIGINT NOT NULL REFERENCES menus(id) ON DELETE CASCADE,
+  ingredient_id BIGINT REFERENCES ingredients(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
-  quantity REAL NOT NULL DEFAULT 1,
+  quantity DOUBLE PRECISION NOT NULL DEFAULT 1,
   unit TEXT NOT NULL DEFAULT '',
   category TEXT NOT NULL DEFAULT 'Pantry',
-  unit_cost REAL,
+  unit_cost DOUBLE PRECISION,
   checked INTEGER NOT NULL DEFAULT 0,
-  checked_by INTEGER REFERENCES users(id),
-  checked_at TEXT,
+  checked_by BIGINT REFERENCES users(id),
+  checked_at TIMESTAMPTZ,
   source TEXT NOT NULL DEFAULT 'menu',
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_menu_meals_menu ON menu_meals(menu_id);
 CREATE INDEX IF NOT EXISTS idx_grocery_menu ON grocery_items(menu_id);
 CREATE INDEX IF NOT EXISTS idx_recipes_household ON recipes(household_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
 `
 
-func openDB(path string) (*sql.DB, error) {
-	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", path)
-	db, err := sql.Open("sqlite", dsn)
+// DB wraps *sql.DB so queries can be written with `?` placeholders.
+type DB struct{ *sql.DB }
+
+// Tx is the transaction counterpart of DB.
+type Tx struct{ *sql.Tx }
+
+// rebind turns `?` placeholders into Postgres `$1, $2, ...`.
+func rebind(q string) string {
+	if !strings.Contains(q, "?") {
+		return q
+	}
+	var b strings.Builder
+	n := 0
+	for _, r := range q {
+		if r == '?' {
+			n++
+			fmt.Fprintf(&b, "$%d", n)
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func (d *DB) Exec(q string, a ...any) (sql.Result, error) { return d.DB.Exec(rebind(q), a...) }
+func (d *DB) Query(q string, a ...any) (*sql.Rows, error) { return d.DB.Query(rebind(q), a...) }
+func (d *DB) QueryRow(q string, a ...any) *sql.Row        { return d.DB.QueryRow(rebind(q), a...) }
+func (t *Tx) Exec(q string, a ...any) (sql.Result, error) { return t.Tx.Exec(rebind(q), a...) }
+func (t *Tx) Query(q string, a ...any) (*sql.Rows, error) { return t.Tx.Query(rebind(q), a...) }
+func (t *Tx) QueryRow(q string, a ...any) *sql.Row        { return t.Tx.QueryRow(rebind(q), a...) }
+
+func (d *DB) Begin() (*Tx, error) {
+	tx, err := d.DB.Begin()
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(1) // SQLite: serialize writes, keeps things simple and safe
-	if _, err := db.Exec(schema); err != nil {
+	return &Tx{tx}, nil
+}
+
+// InsertID runs an INSERT and returns the new row's id.
+func (d *DB) InsertID(q string, a ...any) (id int64, err error) {
+	err = d.QueryRow(q+" RETURNING id", a...).Scan(&id)
+	return
+}
+
+func (t *Tx) InsertID(q string, a ...any) (id int64, err error) {
+	err = t.QueryRow(q+" RETURNING id", a...).Scan(&id)
+	return
+}
+
+// isUnique reports whether err is a Postgres unique-constraint violation.
+func isUnique(err error) bool {
+	var pe *pgconn.PgError
+	return errors.As(err, &pe) && pe.Code == "23505"
+}
+
+func openDB(url string) (*DB, error) {
+	sdb, err := sql.Open("pgx", url)
+	if err != nil {
 		return nil, err
 	}
+	sdb.SetMaxOpenConns(10)
+	sdb.SetConnMaxLifetime(30 * time.Minute)
+
+	// the database container may still be starting
+	var last error
+	for i := 0; i < 30; i++ {
+		if last = sdb.Ping(); last == nil {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if last != nil {
+		return nil, fmt.Errorf("connect to database: %w", last)
+	}
+	db := &DB{sdb}
+	if _, err := db.Exec(schema); err != nil {
+		return nil, fmt.Errorf("apply schema: %w", err)
+	}
+	_, _ = db.Exec(`DELETE FROM sessions WHERE expires_at < now()`)
 	return db, nil
 }

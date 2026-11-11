@@ -49,7 +49,7 @@ func (s *server) loadGrocery(menuID int64) (*Grocery, error) {
 	g := &Grocery{Items: []GroceryItem{}}
 	_ = s.db.QueryRow(`SELECT status FROM menus WHERE id=?`, menuID).Scan(&g.MenuStatus)
 	rows, err := s.db.Query(`SELECT g.id,g.menu_id,g.ingredient_id,g.name,g.quantity,g.unit,g.category,g.unit_cost,g.checked,u.name,g.source
-		FROM grocery_items g LEFT JOIN users u ON u.id=g.checked_by WHERE g.menu_id=? ORDER BY g.category, g.name COLLATE NOCASE`, menuID)
+		FROM grocery_items g LEFT JOIN users u ON u.id=g.checked_by WHERE g.menu_id=? ORDER BY g.category, lower(g.name)`, menuID)
 	if err != nil {
 		return nil, err
 	}

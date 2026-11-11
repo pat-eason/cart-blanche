@@ -1,18 +1,41 @@
+# Local development: `docker compose up -d --build`  ->  http://localhost:${WEB_PORT:-8080}
+# Production (droplet, behind the shared proxy) adds docker-compose.prod.yml; see README.
 services:
-  api:
-    build: ./apps/api
+  db:
+    image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      DB_PATH: /data/cartblanche.db
-      # Set to "true" once you serve over HTTPS (see the `tls` profile below).
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      POSTGRES_USER: cartblanche
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cartblanche}
+      POSTGRES_DB: cartblanche
     volumes:
-      - cartblanche-data:/data
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cartblanche -d cartblanche"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # Loopback only: lets `pnpm dev:api` reach it without exposing it publicly.
+    ports:
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
+
+  api:
+    build: ./apps/api
+    image: ${API_IMAGE:-cart-blanche-api}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://cartblanche:${POSTGRES_PASSWORD:-cartblanche}@db:5432/cartblanche?sslmode=disable
+      # docker-compose.prod.yml turns this on: the droplet always serves HTTPS via the shared proxy.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
 
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+    image: ${WEB_IMAGE:-cart-blanche-web}
     restart: unless-stopped
     depends_on:
       api:
@@ -20,24 +43,5 @@ services:
     ports:
       - "${WEB_PORT:-8080}:80"
 
-  # Optional automatic HTTPS for a droplet with a domain:
-  #   DOMAIN=menu.example.com COOKIE_SECURE=true docker compose --profile tls up -d
-  caddy:
-    profiles: ["tls"]
-    image: caddy:2-alpine
-    restart: unless-stopped
-    depends_on: [web]
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      DOMAIN: ${DOMAIN:-localhost}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-
 volumes:
-  cartblanche-data:
-  caddy-data:
-  caddy-config:
+  pgdata:

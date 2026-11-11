@@ -1,0 +1,24 @@
+# Production overlay for the droplet. Used together with docker-compose.yml:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml docker compose up -d
+#
+# The app sits behind the shared reverse proxy (see the droplet-infra repo): the web container joins the
+# external `proxy` network under a unique alias and publishes no host ports.
+services:
+  db:
+    ports: !reset [] # no loopback publishing in production
+
+  api:
+    environment:
+      COOKIE_SECURE: ${COOKIE_SECURE:-true} # the proxy always serves HTTPS
+
+  web:
+    ports: !reset []
+    networks:
+      default: {}
+      proxy:
+        aliases:
+          - cart-blanche-web # unique per app; a shared `web` alias would round-robin between apps
+
+networks:
+  proxy:
+    external: true

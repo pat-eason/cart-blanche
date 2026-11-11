@@ -45,7 +45,7 @@ func (s *server) startSession(w http.ResponseWriter, userID int64) error {
 	tok := randToken(32)
 	exp := time.Now().Add(sessionTTL)
 	if _, err := s.db.Exec(`INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)`,
-		hashToken(tok), userID, exp.UTC().Format(time.RFC3339)); err != nil {
+		hashToken(tok), userID, exp.UTC()); err != nil {
 		return err
 	}
 	http.SetCookie(w, &http.Cookie{
@@ -61,14 +61,14 @@ func (s *server) userFromRequest(r *http.Request) (*User, error) {
 		return nil, err
 	}
 	u := &User{}
-	var exp string
+	var exp time.Time
 	err = s.db.QueryRow(`SELECT u.id,u.email,u.name,u.household_id,s.expires_at
 		FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=?`, hashToken(c.Value)).
 		Scan(&u.ID, &u.Email, &u.Name, &u.HouseholdID, &exp)
 	if err != nil {
 		return nil, err
 	}
-	if t, _ := time.Parse(time.RFC3339, exp); time.Now().After(t) {
+	if time.Now().After(exp) {
 		return nil, sql.ErrNoRows
 	}
 	return u, nil
@@ -113,7 +113,7 @@ func (s *server) register(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 
 	var exists int
-	_ = tx.QueryRow(`SELECT COUNT(*) FROM users WHERE email=?`, in.Email).Scan(&exists)
+	_ = tx.QueryRow(`SELECT COUNT(*) FROM users WHERE lower(email)=lower(?)`, in.Email).Scan(&exists)
 	if exists > 0 {
 		writeErr(w, apiErr{http.StatusConflict, "that email is already registered"})
 		return
@@ -126,19 +126,21 @@ func (s *server) register(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		res, err := tx.Exec(`INSERT INTO households(name,invite_code) VALUES(?,?)`, in.Name+"'s Kitchen", newInviteCode())
+		hid, err = tx.InsertID(`INSERT INTO households(name,invite_code) VALUES(?,?)`, in.Name+"'s Kitchen", newInviteCode())
 		if err != nil {
 			writeErr(w, err)
 			return
 		}
-		hid, _ = res.LastInsertId()
 	}
-	res, err := tx.Exec(`INSERT INTO users(email,name,password_hash,household_id) VALUES(?,?,?,?)`, in.Email, in.Name, string(hash), hid)
+	uid, err := tx.InsertID(`INSERT INTO users(email,name,password_hash,household_id) VALUES(?,?,?,?)`, in.Email, in.Name, string(hash), hid)
 	if err != nil {
+		if isUnique(err) {
+			writeErr(w, apiErr{http.StatusConflict, "that email is already registered"})
+			return
+		}
 		writeErr(w, err)
 		return
 	}
-	uid, _ := res.LastInsertId()
 	if err := tx.Commit(); err != nil {
 		writeErr(w, err)
 		return
@@ -158,7 +160,7 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	u := User{}
 	var hash string
-	err := s.db.QueryRow(`SELECT id,email,name,household_id,password_hash FROM users WHERE email=?`,
+	err := s.db.QueryRow(`SELECT id,email,name,household_id,password_hash FROM users WHERE lower(email)=lower(?)`,
 		strings.TrimSpace(in.Email)).Scan(&u.ID, &u.Email, &u.Name, &u.HouseholdID, &hash)
 	if err != nil || bcrypt.CompareHashAndPassword([]byte(hash), []byte(in.Password)) != nil {
 		writeErr(w, apiErr{http.StatusUnauthorized, "email or password is incorrect"})

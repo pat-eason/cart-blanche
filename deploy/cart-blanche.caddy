@@ -1,0 +1,6 @@
+# Installed on the droplet by the deploy workflow via `proxy-site install cart-blanche`.
+# __DOMAIN__ is replaced with the repository variable DOMAIN.
+__DOMAIN__ {
+	encode gzip
+	reverse_proxy cart-blanche-web:80
+}

@@ -151,15 +151,14 @@ func (s *server) createMenu(w http.ResponseWriter, r *http.Request, u *User) (an
 	if !validWeek(in.WeekStart) {
 		return nil, errBad("weekStart must be YYYY-MM-DD")
 	}
-	res, err := s.db.Exec(`INSERT INTO menus(household_id,title,week_start,budget,created_by) VALUES(?,?,?,?,?)`,
+	id, err := s.db.InsertID(`INSERT INTO menus(household_id,title,week_start,budget,created_by) VALUES(?,?,?,?,?)`,
 		u.HouseholdID, strings.TrimSpace(in.Title), in.WeekStart, in.Budget, u.ID)
 	if err != nil {
-		if strings.Contains(err.Error(), "UNIQUE") {
+		if isUnique(err) {
 			return nil, apiErr{http.StatusConflict, "there's already a menu for that week"}
 		}
 		return nil, err
 	}
-	id, _ := res.LastInsertId()
 	return s.loadMenu(u.HouseholdID, id)
 }
 

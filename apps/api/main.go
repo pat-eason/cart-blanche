@@ -13,7 +13,7 @@ import (
 )
 
 type server struct {
-	db           *sql.DB
+	db           *DB
 	secureCookie bool
 }
 
@@ -29,11 +29,8 @@ type User struct {
 }
 
 func main() {
-	path := env("DB_PATH", "./data/cartblanche.db")
-	if err := os.MkdirAll(dirOf(path), 0o755); err != nil {
-		log.Fatal(err)
-	}
-	db, err := openDB(path)
+	url := env("DATABASE_URL", "postgres://cartblanche:cartblanche@localhost:5433/cartblanche?sslmode=disable")
+	db, err := openDB(url)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -43,7 +40,7 @@ func main() {
 	s.routes(mux)
 
 	addr := env("ADDR", ":8080")
-	log.Printf("cart blanche api listening on %s (db: %s)", addr, path)
+	log.Printf("cart blanche api listening on %s", addr)
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           logRequests(mux),
@@ -57,18 +54,6 @@ func env(k, d string) string {
 		return v
 	}
 	return d
-}
-
-func dirOf(p string) string {
-	for i := len(p) - 1; i >= 0; i-- {
-		if p[i] == '/' {
-			if i == 0 {
-				return "/"
-			}
-			return p[:i]
-		}
-	}
-	return "."
 }
 
 func logRequests(next http.Handler) http.Handler {

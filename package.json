@@ -7,6 +7,7 @@
     "node": ">=24"
   },
   "scripts": {
+    "dev:db": "docker compose up -d db",
     "dev:api": "cd apps/api && ADDR=:8787 go run .",
     "dev:web": "pnpm --filter @cart-blanche/web dev",
     "build": "pnpm -r build",
