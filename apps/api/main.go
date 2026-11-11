@@ -15,6 +15,7 @@ import (
 type server struct {
 	db           *DB
 	secureCookie bool
+	cookiePath   string
 }
 
 type ctxKey int
@@ -34,7 +35,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := &server{db: db, secureCookie: env("COOKIE_SECURE", "false") == "true"}
+	s := &server{db: db, secureCookie: env("COOKIE_SECURE", "false") == "true", cookiePath: env("COOKIE_PATH", "/")}
 
 	mux := http.NewServeMux()
 	s.routes(mux)

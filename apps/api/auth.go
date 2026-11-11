@@ -49,7 +49,7 @@ func (s *server) startSession(w http.ResponseWriter, userID int64) error {
 		return err
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name: cookieName, Value: tok, Path: "/", Expires: exp,
+		Name: cookieName, Value: tok, Path: s.cookiePath, Expires: exp,
 		HttpOnly: true, Secure: s.secureCookie, SameSite: http.SameSiteLaxMode,
 	})
 	return nil
@@ -177,7 +177,7 @@ func (s *server) logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(cookieName); err == nil {
 		_, _ = s.db.Exec(`DELETE FROM sessions WHERE token_hash=?`, hashToken(c.Value))
 	}
-	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "", Path: "/", MaxAge: -1, HttpOnly: true})
+	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "", Path: s.cookiePath, MaxAge: -1, HttpOnly: true, Secure: s.secureCookie, SameSite: http.SameSiteLaxMode})
 	w.WriteHeader(http.StatusNoContent)
 }
 

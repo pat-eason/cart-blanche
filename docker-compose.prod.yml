@@ -1,8 +1,9 @@
 # Production overlay for the droplet. Used together with docker-compose.yml:
 #   COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml docker compose up -d
 #
-# The app sits behind the shared reverse proxy (see the droplet-infra repo): the web container joins the
-# external `proxy` network under a unique alias and publishes no host ports.
+# The app sits behind the shared reverse proxy (see the droplet-infra repo) at
+# https://apps.pateason.dev/cart-blanche/ : the web container joins the external `proxy` network under a unique
+# alias and publishes no host ports. The web image is built with BASE_PATH=/cart-blanche/ (see the workflow).
 services:
   db:
     ports: !reset [] # no loopback publishing in production
@@ -10,6 +11,7 @@ services:
   api:
     environment:
       COOKIE_SECURE: ${COOKIE_SECURE:-true} # the proxy always serves HTTPS
+      COOKIE_PATH: /cart-blanche # apps share one origin; keep our session cookie to our own path
 
   web:
     ports: !reset []

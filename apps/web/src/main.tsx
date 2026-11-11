@@ -11,7 +11,7 @@ const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 5_000, refe
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={qc}>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, "")}>
         <AuthProvider>
           <App />
         </AuthProvider>

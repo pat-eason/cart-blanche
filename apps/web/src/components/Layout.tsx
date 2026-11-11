@@ -1,6 +1,6 @@
 import { motion } from "framer-motion"
 import type { ReactNode } from "react"
-import { NavLink, Link } from "react-router-dom"
+import { NavLink, Link, useLocation } from "react-router-dom"
 import { useAuth } from "../lib/auth"
 import { Bag } from "./Bag"
 import { Icon } from "./Icon"
@@ -25,6 +25,7 @@ const TABS = [
 
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
+  const { pathname } = useLocation() // router-relative: excludes the base path
   return (
     <div className="shell">
       <aside className="side">
@@ -47,7 +48,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <nav className="tabbar" aria-label="Main">
         {TABS.map((n) => (
           <NavLink key={n.to} to={n.to} end={n.end}
-            className={({ isActive }) => (isActive || (n.to === "/more" && ["/history", "/trends", "/ingredients", "/household"].some((p) => location.pathname.startsWith(p))) ? "active" : "")}>
+            className={({ isActive }) => (isActive || (n.to === "/more" && ["/history", "/trends", "/ingredients", "/household"].some((p) => pathname.startsWith(p))) ? "active" : "")}>
             {({ isActive }) => (
               <>
                 {isActive && <motion.i layoutId="tabpill" className="pill" transition={{ type: "spring", stiffness: 400, damping: 32 }} />}

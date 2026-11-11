@@ -73,15 +73,15 @@ meal types.
 
 ## Deploy to a DigitalOcean droplet (GitHub Actions)
 
-Cart Blanche shares a droplet with other apps. The server-level pieces (Docker, the `deploy` user, the firewall,
-the HTTPS reverse proxy and its certificates) live in a separate repo,
-`droplet-infra`. This repo only deploys its own containers and
-publishes its own hostname to that proxy.
+Cart Blanche shares a droplet with other apps and is served at **https://apps.pateason.dev/cart-blanche/**
+(a path under a shared hostname, not its own domain). The server-level pieces (Docker, the `deploy` user, the
+firewall, the HTTPS reverse proxy, the hostname and its certificate) live in the separate `droplet-infra` repo.
+This repo deploys its own containers and publishes its own route to that proxy.
 
 Every push to `main` runs [.github/workflows/deploy.yml](.github/workflows/deploy.yml): typecheck and build →
-build the API and web images and push them to GitHub Container Registry → SSH to the droplet, pull the images,
-restart with `docker compose`, then register this app's domain with the shared proxy. Pull requests only run the
-first step. The droplet never builds anything, so a small one is fine.
+build the API and web images (the web image is built for the `/cart-blanche/` base path) and push them to
+GitHub Container Registry → SSH to the droplet, pull the images, restart with `docker compose`, then install this
+app's route in the proxy. Pull requests only run the first step. The droplet never builds anything.
 
 **Prerequisites (once)**
 
@@ -89,29 +89,32 @@ first step. The droplet never builds anything, so a small one is fine.
 2. As root on the droplet, give the deploy user this app's folder: `sudo install -d -o deploy -g deploy /opt/cart-blanche`.
 3. Make an SSH key pair for this repo (`ssh-keygen -t ed25519 -f deploy_key -N ""`) and append the public key to
    `/home/deploy/.ssh/authorized_keys` on the droplet.
-4. In this repo's Settings → Secrets and variables → Actions:
+4. In this repo's Settings → Secrets and variables → Actions, add these secrets:
 
-   | Kind | Name | Value |
-   |---|---|---|
-   | Secret | `DROPLET_HOST` | droplet IP or hostname |
-   | Secret | `DROPLET_USER` | `deploy` |
-   | Secret | `DROPLET_SSH_KEY` | contents of the private `deploy_key` |
-   | Secret | `DROPLET_KNOWN_HOSTS` | output of `ssh-keyscan -t ed25519 <droplet-ip>` |
-   | Secret | `DROPLET_SSH_PORT` | optional, defaults to 22 |
-   | Variable | `DOMAIN` | the hostname for this app, e.g. `menu.example.com` |
-
-5. Point that hostname's DNS A record at the droplet.
+   | Secret | Value |
+   |---|---|
+   | `DROPLET_HOST` | droplet IP or hostname |
+   | `DROPLET_USER` | `deploy` |
+   | `DROPLET_SSH_KEY` | contents of the private `deploy_key` |
+   | `DROPLET_KNOWN_HOSTS` | output of `ssh-keyscan -t ed25519 <droplet-ip>` |
+   | `DROPLET_SSH_PORT` | optional, defaults to 22 |
 
 Then push to `main` (or run the workflow from the Actions tab). The first deploy creates
 `/opt/cart-blanche/.env` with a random Postgres password. The deploy waits for the API's health check and fails
 with logs if it doesn't come up. Images are tagged with the commit SHA, so rolling back is re-running an older
 workflow run. Use the `production` environment's required reviewers if you want a manual approval gate.
 
-**How it plugs into the proxy** — [docker-compose.prod.yml](docker-compose.prod.yml) is layered over the
-normal compose file on the droplet: the web container joins the shared `proxy` network under the alias
-`cart-blanche-web`, nothing publishes host ports, and `COOKIE_SECURE` defaults to true. The hostname is published
-from [deploy/cart-blanche.caddy](deploy/cart-blanche.caddy) with `proxy-site install cart-blanche`, which validates
-the Caddy config and rolls back if it's invalid.
+**How it plugs into the proxy**
+
+- [docker-compose.prod.yml](docker-compose.prod.yml) is layered over the normal compose file on the droplet: the
+  web container joins the shared `proxy` network as `cart-blanche-web`, nothing publishes host ports,
+  `COOKIE_SECURE` is true, and the session cookie is scoped to `Path=/cart-blanche`.
+- [deploy/cart-blanche.caddy](deploy/cart-blanche.caddy) is the route snippet. Caddy strips `/cart-blanche`
+  before forwarding, so the web container still sees requests at `/`. `proxy-site install` validates the Caddy
+  config and rolls back if the snippet is invalid.
+- **Subpath support:** the Vite base path is a build argument (`BASE_PATH`, default `/`), the React router uses
+  it as its basename, and API calls go to `<base>api/...`. Locally everything stays at `/`. To try a subpath build:
+  `BASE_PATH=/cart-blanche/ docker compose build web`, or `VITE_BASE=/cart-blanche/ pnpm dev:web`.
 
 **Data & backups** — Postgres lives in the `pgdata` volume on the droplet, so deploys don't touch it. Back it up
 with `pg_dump`, ideally from cron and copied off the droplet (and/or enable DigitalOcean droplet backups):
@@ -121,7 +124,8 @@ cd /opt/cart-blanche && COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml 
   docker compose exec -T db pg_dump -U cartblanche cartblanche | gzip > cartblanche-$(date +%F).sql.gz
 ```
 
-Sessions are HttpOnly cookies stored server-side; passwords are bcrypt-hashed.
+Sessions are HttpOnly cookies stored server-side; passwords are bcrypt-hashed. Because every app on the droplet
+shares one origin, keep the cookie path and name app-specific (they are).
 
 ## API configuration
 
@@ -130,3 +134,4 @@ Sessions are HttpOnly cookies stored server-side; passwords are bcrypt-hashed.
 | `ADDR` | `:8080` | listen address |
 | `DATABASE_URL` | `postgres://cartblanche:cartblanche@localhost:5433/cartblanche?sslmode=disable` | Postgres connection string (compose sets this for you) |
 | `COOKIE_SECURE` | `false` | mark session cookie `Secure` |
+| `COOKIE_PATH` | `/` | session cookie `Path` (the droplet uses `/cart-blanche`) |

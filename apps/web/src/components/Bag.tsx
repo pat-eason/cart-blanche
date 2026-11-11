@@ -11,7 +11,7 @@ const RATIO: Record<Mood, number> = {
 export function Bag({ mood = "happy", size = 120, style, className }: { mood?: Mood; size?: number; style?: CSSProperties; className?: string }) {
   const w = Math.round(size * 0.9)
   return (
-    <img src={`/bags/${mood}.png`} alt="" aria-hidden="true" width={w} height={Math.round(w * RATIO[mood])}
+    <img src={`${import.meta.env.BASE_URL}bags/${mood}.png`} alt="" aria-hidden="true" width={w} height={Math.round(w * RATIO[mood])}
       style={{ objectFit: "contain", height: "auto", ...style }} className={className} draggable={false} />
   )
 }

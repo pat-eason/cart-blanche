@@ -35,6 +35,8 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        BASE_PATH: ${BASE_PATH:-/} # "/" locally; the prod image is built for /cart-blanche/
     image: ${WEB_IMAGE:-cart-blanche-web}
     restart: unless-stopped
     depends_on:

@@ -25,7 +25,7 @@ export default function HouseholdPage() {
     onSuccess: () => { setCode(""); setErr(""); refresh() }, onError: fail,
   })
   if (!h) return <Spinner />
-  const link = `${location.origin}/register?invite=${h.inviteCode}`
+  const link = `${location.origin}${import.meta.env.BASE_URL}register?invite=${h.inviteCode}`
   const copy = async (t: string, m: string) => { try { await navigator.clipboard.writeText(t); toast.show(m) } catch { toast.show("Copy failed") } }
 
   return (

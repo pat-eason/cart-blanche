@@ -85,6 +85,9 @@ jobs:
           context: .
           file: apps/web/Dockerfile
           push: true
+          # The app is served at https://apps.pateason.dev/cart-blanche/, so assets/links/API calls
+          # must carry that prefix; it's baked in at build time.
+          build-args: BASE_PATH=/cart-blanche/
           tags: ${{ steps.names.outputs.web }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,scope=web,mode=max
@@ -158,13 +161,10 @@ jobs:
           exit 1
           REMOTE
 
-      # The app owns its own hostname. proxy-site validates the config and rolls back if it's invalid.
-      - name: Publish site to the shared proxy
-        env:
-          DOMAIN: ${{ vars.DOMAIN }}
-        run: |
-          test -n "$DOMAIN" || { echo "Set the repository variable DOMAIN (e.g. menu.example.com)"; exit 1; }
-          sed "s/__DOMAIN__/$DOMAIN/g" deploy/cart-blanche.caddy | ssh droplet "proxy-site install cart-blanche"
+      # The proxy owns the hostname/certificate; this app only publishes its route under /cart-blanche/.
+      # proxy-site validates the whole Caddy config and rolls back if the snippet is invalid.
+      - name: Publish route to the proxy
+        run: ssh droplet "proxy-site install cart-blanche" < deploy/cart-blanche.caddy
 
       - name: Remove stored registry credentials
         if: always()
