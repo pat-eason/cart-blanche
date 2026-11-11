@@ -1,0 +1,43 @@
+services:
+  api:
+    build: ./apps/api
+    restart: unless-stopped
+    environment:
+      DB_PATH: /data/cartblanche.db
+      # Set to "true" once you serve over HTTPS (see the `tls` profile below).
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    volumes:
+      - cartblanche-data:/data
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+  # Optional automatic HTTPS for a droplet with a domain:
+  #   DOMAIN=menu.example.com COOKIE_SECURE=true docker compose --profile tls up -d
+  caddy:
+    profiles: ["tls"]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [web]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  cartblanche-data:
+  caddy-data:
+  caddy-config:
