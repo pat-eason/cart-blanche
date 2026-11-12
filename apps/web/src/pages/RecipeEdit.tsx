@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { Icon } from "../components/Icon"
-import { Spinner, TagInput } from "../components/ui"
+import { Spinner, TagInput, useConfirm, useToast } from "../components/ui"
 import { api, ApiError, type Ingredient, type RecipeInput } from "../lib/api"
 import { useIngredients } from "../lib/hooks"
 import { CATEGORIES, cap, MEAL_TYPES, money, qty } from "../lib/util"
@@ -26,7 +26,8 @@ export default function RecipeEdit() {
   const [servings, setServings] = useState("4")
   const [instructions, setInstructions] = useState("")
   const [lines, setLines] = useState<Line[]>([])
-  const [err, setErr] = useState("")
+  const toast = useToast()
+  const confirm = useConfirm()
   const loaded = useRef(false)
 
   useEffect(() => {
@@ -52,12 +53,12 @@ export default function RecipeEdit() {
       return editing ? api.updateRecipe(+id!, body) : api.createRecipe(body)
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["recipes"] }); qc.invalidateQueries({ queryKey: ["recipe"] }); nav("/recipes") },
-    onError: (e) => setErr(e instanceof ApiError ? e.message : "Couldn't save"),
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't save"),
   })
   const remove = useMutation({
     mutationFn: () => api.deleteRecipe(+id!),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["recipes"] }); nav("/recipes") },
-    onError: (e) => setErr(e instanceof ApiError ? e.message : "Couldn't delete"),
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't delete"),
   })
   const avoid = useMutation({
     mutationFn: (v: boolean) => api.setAvoid(+id!, v),
@@ -65,7 +66,7 @@ export default function RecipeEdit() {
   })
 
   if (editing && recipeQ.isLoading) return <Spinner />
-  const submit = (e: FormEvent) => { e.preventDefault(); setErr(""); save.mutate() }
+  const submit = (e: FormEvent) => { e.preventDefault(); save.mutate() }
 
   return (
     <form onSubmit={submit}>
@@ -76,11 +77,11 @@ export default function RecipeEdit() {
         </div>
         <div className="row wrap">
           {editing && <button type="button" className="btn small" onClick={() => avoid.mutate(!recipeQ.data?.avoid)}><Icon name="ban" size={14} />{recipeQ.data?.avoid ? "Allow again" : "Never again"}</button>}
-          {editing && <button type="button" className="btn small danger" onClick={() => confirm("Delete this recipe?") && remove.mutate()}><Icon name="trash" size={14} />Delete</button>}
+          {editing && <button type="button" className="btn small danger" onClick={async () => { if (await confirm.ask({ title: "Delete this recipe?", message: "It will be removed from your recipes and any menus. This can't be undone.", confirmLabel: "Delete", danger: true })) remove.mutate() }}><Icon name="trash" size={14} />Delete</button>}
           <button className="btn primary" disabled={save.isPending || !name.trim()}><Icon name="check" size={18} />Save recipe</button>
         </div>
       </div>
-      {err && <div className="error" role="alert" style={{ marginBottom: "1rem" }}>{err}</div>}
+      {toast.node}{confirm.node}
 
       <div className="split">
         <div className="stack">

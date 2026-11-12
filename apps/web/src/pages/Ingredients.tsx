@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState, type FormEvent } from "react"
 import { Icon } from "../components/Icon"
-import { Empty, Spinner } from "../components/ui"
+import { Empty, Spinner, useToast } from "../components/ui"
 import { api, ApiError, type Ingredient } from "../lib/api"
 import { useIngredients } from "../lib/hooks"
 import { CATEGORIES } from "../lib/util"
@@ -10,13 +10,13 @@ export default function Ingredients() {
   const q = useIngredients()
   const qc = useQueryClient()
   const [search, setSearch] = useState("")
-  const [err, setErr] = useState("")
+  const toast = useToast()
   const [name, setName] = useState("")
   const [unit, setUnit] = useState("")
   const [category, setCategory] = useState("Produce")
   const [cost, setCost] = useState("")
-  const done = () => { setErr(""); qc.invalidateQueries({ queryKey: ["ingredients"] }); qc.invalidateQueries({ queryKey: ["recipes"] }) }
-  const fail = (e: unknown) => setErr(e instanceof ApiError ? e.message : "Something went wrong")
+  const done = () => { qc.invalidateQueries({ queryKey: ["ingredients"] }); qc.invalidateQueries({ queryKey: ["recipes"] }) }
+  const fail = (e: unknown) => toast.error(e instanceof ApiError ? e.message : "Something went wrong")
   const create = useMutation({
     mutationFn: () => api.createIngredient({ name, unit, category, unitCost: cost.trim() === "" ? null : parseFloat(cost) }),
     onSuccess: () => { done(); setName(""); setUnit(""); setCost("") }, onError: fail,
@@ -26,7 +26,7 @@ export default function Ingredients() {
   return (
     <div>
       <div className="page-head"><div><div className="eyebrow">Your catalog</div><h1>Ingredients</h1><p className="muted">Everything you shop for. Set an optional price per unit and meal costs add up automatically.</p></div></div>
-      {err && <div className="error" role="alert" style={{ marginBottom: "1rem" }}>{err}</div>}
+      {toast.node}
       <form className="sheet row wrap" style={{ marginBottom: "1.4rem", alignItems: "flex-end" }} onSubmit={submit}>
         <div className="field grow" style={{ minWidth: 160 }}><label htmlFor="in">New ingredient</label><input id="in" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Red onion" required /></div>
         <div className="field"><label htmlFor="iu">Unit</label><input id="iu" className="input" style={{ width: 90 }} value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="lb, pc…" /></div>

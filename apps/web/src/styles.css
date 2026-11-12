@@ -321,6 +321,7 @@ button.chip { cursor: pointer; }
 .empty { text-align: center; padding: 2.4rem 1rem; display: grid; justify-items: center; gap: 0.7rem; }
 .empty .hand { font-size: 1.6rem; color: var(--forest); }
 .toast { position: fixed; left: 50%; bottom: calc(var(--nav-h) + 30px); transform: translateX(-50%); background: var(--forest); color: var(--paper); padding: 0.6rem 1rem; border-radius: 999px; z-index: 300; box-shadow: var(--shadow-lift); font-weight: 600; font-size: 0.9rem; }
+.toast.error-toast { background: var(--tomato-deep); }
 @media (min-width: 861px) { .toast { bottom: 28px; } }
 .week-switch { display: inline-flex; align-items: center; gap: 0.35rem; }
 .week-switch .label-w { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; color: var(--forest); min-width: 11.5rem; text-align: center; }

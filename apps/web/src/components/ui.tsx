@@ -40,21 +40,53 @@ export function Spinner() {
 }
 
 export function useToast() {
-  const [msg, setMsg] = useState<string | null>(null)
-  const t = useRef<number | undefined>(undefined)
-  const show = (m: string) => {
-    setMsg(m)
-    window.clearTimeout(t.current)
-    t.current = window.setTimeout(() => setMsg(null), 2400)
+  const [t, setT] = useState<{ msg: string; kind: "info" | "error"; id: number } | null>(null)
+  const timer = useRef<number | undefined>(undefined)
+  const push = (msg: string, kind: "info" | "error", ms: number) => {
+    setT({ msg, kind, id: Date.now() })
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => setT(null), ms)
   }
+  const show = (m: string) => push(m, "info", 2400)
+  const error = (m: string) => push(m, "error", 5000)
+  useEffect(() => {
+    if (!t) return
+    const h = (e: KeyboardEvent) => e.key === "Escape" && setT(null)
+    window.addEventListener("keydown", h)
+    return () => window.removeEventListener("keydown", h)
+  }, [t])
   const node = (
     <AnimatePresence>
-      {msg && (
-        <motion.div className="toast" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 10, opacity: 0 }}>{msg}</motion.div>
+      {t && (
+        <motion.div key={t.id} className={`toast${t.kind === "error" ? " error-toast" : ""}`} role={t.kind === "error" ? "alert" : "status"}
+          initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 10, opacity: 0 }}>{t.msg}</motion.div>
       )}
     </AnimatePresence>
   )
-  return { show, node }
+  return { show, error, node }
+}
+
+interface ConfirmOpts { title: string; message?: string; confirmLabel?: string; danger?: boolean }
+
+/** Promise-based replacement for window.confirm, rendered as an animated modal (Esc / backdrop = cancel). */
+export function useConfirm() {
+  const [opts, setOpts] = useState<ConfirmOpts | null>(null)
+  const resolver = useRef<((v: boolean) => void) | null>(null)
+  const ask = (o: ConfirmOpts) => new Promise<boolean>((resolve) => { resolver.current = resolve; setOpts(o) })
+  const close = (v: boolean) => { resolver.current?.(v); resolver.current = null; setOpts(null) }
+  const last = useRef<ConfirmOpts | null>(null)
+  if (opts) last.current = opts
+  const o = opts ?? last.current
+  const node = (
+    <Modal open={!!opts} onClose={() => close(false)} title={o?.title}>
+      {o?.message && <p className="muted" style={{ marginBottom: "1.2rem" }}>{o.message}</p>}
+      <div className="row" style={{ justifyContent: "flex-end" }}>
+        <button type="button" className="btn" onClick={() => close(false)}>Cancel</button>
+        <button type="button" className={`btn ${o?.danger ? "primary" : "forest"}`} autoFocus onClick={() => close(true)}>{o?.confirmLabel ?? "Confirm"}</button>
+      </div>
+    </Modal>
+  )
+  return { ask, node }
 }
 
 export function Tags({ tags, max = 4 }: { tags: string[]; max?: number }) {

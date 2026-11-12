@@ -3,7 +3,7 @@ import { motion } from "framer-motion"
 import { useState } from "react"
 import { Bag } from "../components/Bag"
 import { Icon } from "../components/Icon"
-import { Spinner, useToast } from "../components/ui"
+import { Spinner, useConfirm, useToast } from "../components/ui"
 import { api, ApiError } from "../lib/api"
 import { useAuth } from "../lib/auth"
 import { useHousehold } from "../lib/hooks"
@@ -15,14 +15,14 @@ export default function HouseholdPage() {
   const toast = useToast()
   const [name, setName] = useState<string | null>(null)
   const [code, setCode] = useState("")
-  const [err, setErr] = useState("")
+  const confirm = useConfirm()
   const h = q.data
-  const fail = (e: unknown) => setErr(e instanceof ApiError ? e.message : "Something went wrong")
+  const fail = (e: unknown) => toast.error(e instanceof ApiError ? e.message : "Something went wrong")
   const rename = useMutation({ mutationFn: (n: string) => api.renameHousehold(n), onSuccess: (x) => { qc.setQueryData(["household"], x); setName(null); toast.show("Renamed") }, onError: fail })
   const reset = useMutation({ mutationFn: api.resetInvite, onSuccess: (x) => { qc.setQueryData(["household"], x); toast.show("New code generated") } })
   const join = useMutation({
     mutationFn: () => api.joinHousehold(code),
-    onSuccess: () => { setCode(""); setErr(""); refresh() }, onError: fail,
+    onSuccess: () => { setCode(""); refresh() }, onError: fail,
   })
   if (!h) return <Spinner />
   const link = `${location.origin}${import.meta.env.BASE_URL}register?invite=${h.inviteCode}`
@@ -31,7 +31,6 @@ export default function HouseholdPage() {
   return (
     <div className="stack" style={{ gap: "1.4rem" }}>
       <div className="page-head" style={{ marginBottom: 0 }}><div><div className="eyebrow">Shop together</div><h1>Household</h1><p className="muted">Everyone in your household shares recipes, menus, and grocery lists.</p></div></div>
-      {err && <div className="error" role="alert">{err}</div>}
       <div className="grid cols-2">
         <section className="sheet stacked stack">
           <span className="tape" />
@@ -72,12 +71,12 @@ export default function HouseholdPage() {
       <section className="sheet flat">
         <h3>Join a different household</h3>
         <p className="muted small" style={{ margin: "4px 0 10px" }}>Have a code from someone else? You'll switch to their household and see their menus and lists instead of these.</p>
-        <form className="row wrap" onSubmit={(e) => { e.preventDefault(); if (code.trim() && confirm("Switch households? You'll stop seeing this household's data.")) join.mutate() }}>
+        <form className="row wrap" onSubmit={async (e) => { e.preventDefault(); if (code.trim() && await confirm.ask({ title: "Switch households?", message: "You'll stop seeing this household's data.", confirmLabel: "Switch" })) join.mutate() }}>
           <input className="input" style={{ maxWidth: 220 }} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="ABCD-2345" aria-label="Invite code" />
           <button className="btn" disabled={!code.trim()}>Join</button>
         </form>
       </section>
-      {toast.node}
+      {toast.node}{confirm.node}
     </div>
   )
 }
