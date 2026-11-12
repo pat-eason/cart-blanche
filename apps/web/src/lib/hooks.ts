@@ -19,7 +19,7 @@ export function useMenuWeek(week: string, poll = true) {
   })
 }
 
-export const useGrocery = (menuId: number | undefined) =>
+export const useGrocery = (menuId: string | undefined) =>
   useQuery({ queryKey: ["grocery", menuId], queryFn: () => api.grocery(menuId!), enabled: !!menuId, refetchInterval: 4000 })
 
 export function useWeekParam() {

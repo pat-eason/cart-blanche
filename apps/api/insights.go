@@ -52,15 +52,15 @@ func (s *server) recommendations(w http.ResponseWriter, r *http.Request, u *User
 	mealType := q.Get("mealType")
 	include := splitCSV(q.Get("include"))
 	exclude := splitCSV(q.Get("exclude"))
-	skipIngs := map[int64]bool{}
+	skipIngs := map[string]bool{}
 	for _, p := range splitCSV(q.Get("excludeIngredients")) {
-		if id, err := strconv.ParseInt(p, 10, 64); err == nil {
+		if id, ok := parseUUID(p); ok {
 			skipIngs[id] = true
 		}
 	}
-	skipIDs := map[int64]bool{}
+	skipIDs := map[string]bool{}
 	for _, p := range splitCSV(q.Get("skip")) {
-		if id, err := strconv.ParseInt(p, 10, 64); err == nil {
+		if id, ok := parseUUID(p); ok {
 			skipIDs[id] = true
 		}
 	}
@@ -71,14 +71,14 @@ func (s *server) recommendations(w http.ResponseWriter, r *http.Request, u *User
 		return nil, err
 	}
 
-	lastStatus := map[int64]string{}
+	lastStatus := map[string]string{}
 	rows, err := s.db.Query(`SELECT mm.recipe_id, mm.status FROM menu_meals mm JOIN menus m ON m.id=mm.menu_id
 		WHERE m.household_id=? ORDER BY m.week_start ASC, mm.id ASC`, u.HouseholdID)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
-		var rid int64
+		var rid string
 		var st string
 		_ = rows.Scan(&rid, &st)
 		lastStatus[rid] = st
@@ -175,7 +175,7 @@ type CountItem struct {
 	Name  string  `json:"name"`
 	Count int     `json:"count"`
 	Cost  float64 `json:"cost"`
-	ID    int64   `json:"id,omitempty"`
+	ID    string  `json:"id,omitempty"`
 }
 
 type WeekStat struct {
@@ -200,13 +200,13 @@ func (s *server) stats(w http.ResponseWriter, r *http.Request, u *User) (any, er
 
 	// weekly series
 	weekly := []*WeekStat{}
-	byMenu := map[int64]*WeekStat{}
+	byMenu := map[string]*WeekStat{}
 	rows, err := s.db.Query(`SELECT id,week_start,budget FROM menus WHERE household_id=? AND week_start>=? ORDER BY week_start`, u.HouseholdID, since)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
-		var id int64
+		var id string
 		ws := &WeekStat{ByCategory: map[string]int{}}
 		_ = rows.Scan(&id, &ws.WeekStart, &ws.Budget)
 		byMenu[id] = ws
@@ -221,7 +221,7 @@ func (s *server) stats(w http.ResponseWriter, r *http.Request, u *User) (any, er
 		return nil, err
 	}
 	for mr.Next() {
-		var mid int64
+		var mid string
 		var st string
 		var c *float64
 		_ = mr.Scan(&mid, &st, &c)
@@ -246,7 +246,7 @@ func (s *server) stats(w http.ResponseWriter, r *http.Request, u *User) (any, er
 		return nil, err
 	}
 	for gr.Next() {
-		var mid int64
+		var mid string
 		var cat, src string
 		var ch int
 		var cost float64

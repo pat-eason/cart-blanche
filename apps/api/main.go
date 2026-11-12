@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/jackc/pgx/v5/pgconn"
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -28,10 +30,10 @@ type ctxKey int
 const userKey ctxKey = 1
 
 type User struct {
-	ID          int64  `json:"id"`
+	ID          string `json:"id"`
 	Email       string `json:"email"`
 	Name        string `json:"name"`
-	HouseholdID int64  `json:"householdId"`
+	HouseholdID string `json:"householdId"`
 }
 
 func main() {
@@ -111,6 +113,11 @@ func writeErr(w http.ResponseWriter, err error) {
 		writeJSON(w, ae.status, map[string]string{"error": ae.msg})
 		return
 	}
+	var pe *pgconn.PgError
+	if errors.As(err, &pe) && pe.Code == "22P02" { // malformed uuid in a request body
+		writeJSON(w, 400, map[string]string{"error": "bad id"})
+		return
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, 404, map[string]string{"error": "not found"})
 		return
@@ -127,12 +134,20 @@ func decode(r *http.Request, v any) error {
 	return nil
 }
 
-func pathID(r *http.Request, name string) (int64, error) {
-	id, err := strconv.ParseInt(r.PathValue(name), 10, 64)
-	if err != nil {
-		return 0, errBad("bad id")
+func pathID(r *http.Request, name string) (string, error) {
+	id, ok := parseUUID(r.PathValue(name))
+	if !ok {
+		return "", errBad("bad id")
 	}
 	return id, nil
+}
+
+var uuidRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+
+// parseUUID lowercases s and reports whether it is a canonical UUID.
+func parseUUID(s string) (string, bool) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	return s, uuidRe.MatchString(s)
 }
 
 type handler func(w http.ResponseWriter, r *http.Request, u *User) (any, error)

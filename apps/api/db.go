@@ -13,28 +13,28 @@ import (
 
 const schema = `
 CREATE TABLE IF NOT EXISTS households (
-  id BIGSERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   invite_code TEXT NOT NULL UNIQUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS users (
-  id BIGSERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT NOT NULL,
   name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
-  household_id BIGINT NOT NULL REFERENCES households(id),
+  household_id UUID NOT NULL REFERENCES households(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower ON users (lower(email));
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   expires_at TIMESTAMPTZ NOT NULL
 );
 CREATE TABLE IF NOT EXISTS ingredients (
-  id BIGSERIAL PRIMARY KEY,
-  household_id BIGINT NOT NULL REFERENCES households(id),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id UUID NOT NULL REFERENCES households(id),
   name TEXT NOT NULL,
   unit TEXT NOT NULL DEFAULT '',
   category TEXT NOT NULL DEFAULT 'Pantry',
@@ -42,8 +42,8 @@ CREATE TABLE IF NOT EXISTS ingredients (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ingredients_household_name ON ingredients (household_id, lower(name));
 CREATE TABLE IF NOT EXISTS recipes (
-  id BIGSERIAL PRIMARY KEY,
-  household_id BIGINT NOT NULL REFERENCES households(id),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id UUID NOT NULL REFERENCES households(id),
   name TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   meal_type TEXT NOT NULL DEFAULT 'dinner',
@@ -53,47 +53,47 @@ CREATE TABLE IF NOT EXISTS recipes (
   servings INTEGER NOT NULL DEFAULT 2,
   instructions TEXT NOT NULL DEFAULT '',
   avoid INTEGER NOT NULL DEFAULT 0,
-  created_by BIGINT REFERENCES users(id),
+  created_by UUID REFERENCES users(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS recipe_ingredients (
-  id BIGSERIAL PRIMARY KEY,
-  recipe_id BIGINT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
-  ingredient_id BIGINT NOT NULL REFERENCES ingredients(id),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  recipe_id UUID NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+  ingredient_id UUID NOT NULL REFERENCES ingredients(id),
   quantity DOUBLE PRECISION NOT NULL DEFAULT 1,
   note TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS menus (
-  id BIGSERIAL PRIMARY KEY,
-  household_id BIGINT NOT NULL REFERENCES households(id),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id UUID NOT NULL REFERENCES households(id),
   title TEXT NOT NULL DEFAULT '',
   week_start TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'draft',
   budget DOUBLE PRECISION,
   notes TEXT NOT NULL DEFAULT '',
-  created_by BIGINT REFERENCES users(id),
+  created_by UUID REFERENCES users(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(household_id, week_start)
 );
 CREATE TABLE IF NOT EXISTS menu_meals (
-  id BIGSERIAL PRIMARY KEY,
-  menu_id BIGINT NOT NULL REFERENCES menus(id) ON DELETE CASCADE,
-  recipe_id BIGINT NOT NULL REFERENCES recipes(id),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  menu_id UUID NOT NULL REFERENCES menus(id) ON DELETE CASCADE,
+  recipe_id UUID NOT NULL REFERENCES recipes(id),
   day INTEGER,
   slot TEXT NOT NULL DEFAULT 'dinner',
   status TEXT NOT NULL DEFAULT 'planned'
 );
 CREATE TABLE IF NOT EXISTS grocery_items (
-  id BIGSERIAL PRIMARY KEY,
-  menu_id BIGINT NOT NULL REFERENCES menus(id) ON DELETE CASCADE,
-  ingredient_id BIGINT REFERENCES ingredients(id) ON DELETE SET NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  menu_id UUID NOT NULL REFERENCES menus(id) ON DELETE CASCADE,
+  ingredient_id UUID REFERENCES ingredients(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
   quantity DOUBLE PRECISION NOT NULL DEFAULT 1,
   unit TEXT NOT NULL DEFAULT '',
   category TEXT NOT NULL DEFAULT 'Pantry',
   unit_cost DOUBLE PRECISION,
   checked INTEGER NOT NULL DEFAULT 0,
-  checked_by BIGINT REFERENCES users(id),
+  checked_by UUID REFERENCES users(id),
   checked_at TIMESTAMPTZ,
   source TEXT NOT NULL DEFAULT 'menu',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -144,12 +144,12 @@ func (d *DB) Begin() (*Tx, error) {
 }
 
 // InsertID runs an INSERT and returns the new row's id.
-func (d *DB) InsertID(q string, a ...any) (id int64, err error) {
+func (d *DB) InsertID(q string, a ...any) (id string, err error) {
 	err = d.QueryRow(q+" RETURNING id", a...).Scan(&id)
 	return
 }
 
-func (t *Tx) InsertID(q string, a ...any) (id int64, err error) {
+func (t *Tx) InsertID(q string, a ...any) (id string, err error) {
 	err = t.QueryRow(q+" RETURNING id", a...).Scan(&id)
 	return
 }
@@ -180,8 +180,8 @@ func openDB(url string) (*DB, error) {
 		return nil, fmt.Errorf("connect to database: %w", last)
 	}
 	db := &DB{sdb}
-	if _, err := db.Exec(schema); err != nil {
-		return nil, fmt.Errorf("apply schema: %w", err)
+	if err := applySchema(db); err != nil {
+		return nil, err
 	}
 	_, _ = db.Exec(`DELETE FROM sessions WHERE expires_at < now()`)
 	return db, nil

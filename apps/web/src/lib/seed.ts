@@ -40,7 +40,7 @@ const RECIPES: R[] = [
 export async function loadStarter(): Promise<number> {
   const existing = await api.ingredients()
   const byName = new Map(existing.map((i) => [i.name.toLowerCase(), i.id]))
-  const ids: Record<string, number> = {}
+  const ids: Record<string, string> = {}
   for (const [key, i] of Object.entries(ING)) {
     const have = byName.get(i.n.toLowerCase())
     ids[key] = have ?? (await api.createIngredient({ name: i.n, unit: i.u, category: i.c, unitCost: i.$ ?? null })).id

@@ -18,13 +18,13 @@ export default function History() {
   const recipesQ = useRecipes()
   const qc = useQueryClient()
   const toast = useToast()
-  const [open, setOpen] = useState<number | null>(null)
+  const [open, setOpen] = useState<string | null>(null)
   const refresh = () => { qc.invalidateQueries({ queryKey: ["menus"] }); qc.invalidateQueries({ queryKey: ["menu"] }); qc.invalidateQueries({ queryKey: ["recipes"] }) }
 
-  const status = useMutation({ mutationFn: ({ id, s }: { id: number; s: MealStatus }) => api.updateMeal(id, { status: s }), onSuccess: refresh })
-  const avoid = useMutation({ mutationFn: ({ id, v }: { id: number; v: boolean }) => api.setAvoid(id, v), onSuccess: () => { refresh(); toast.show("Got it") } })
+  const status = useMutation({ mutationFn: ({ id, s }: { id: string; s: MealStatus }) => api.updateMeal(id, { status: s }), onSuccess: refresh })
+  const avoid = useMutation({ mutationFn: ({ id, v }: { id: string; v: boolean }) => api.setAvoid(id, v), onSuccess: () => { refresh(); toast.show("Got it") } })
   const addRecipes = useMutation({
-    mutationFn: async (ids: number[]) => {
+    mutationFn: async (ids: string[]) => {
       const m = await ensureCurrentMenu()
       const have = new Set(m.meals.map((x) => x.recipeId))
       let n = 0
@@ -39,7 +39,7 @@ export default function History() {
   const all = menusQ.data ?? []
 
   // recipes whose most recent appearance was "skipped"
-  const lastByRecipe = new Map<number, { status: MealStatus; name: string; week: string }>()
+  const lastByRecipe = new Map<string, { status: MealStatus; name: string; week: string }>()
   for (const m of [...all].sort((a, b) => a.weekStart.localeCompare(b.weekStart)))
     for (const ml of m.meals) lastByRecipe.set(ml.recipeId, { status: ml.status, name: ml.name, week: m.weekStart })
   const recipesById = new Map((recipesQ.data ?? []).map((r) => [r.id, r]))

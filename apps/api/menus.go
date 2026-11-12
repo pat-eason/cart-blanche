@@ -18,8 +18,8 @@ func validWeek(s string) bool {
 }
 
 type Meal struct {
-	ID       int64    `json:"id"`
-	RecipeID int64    `json:"recipeId"`
+	ID       string   `json:"id"`
+	RecipeID string   `json:"recipeId"`
 	Name     string   `json:"name"`
 	MealType string   `json:"mealType"`
 	Tags     []string `json:"tags"`
@@ -31,7 +31,7 @@ type Meal struct {
 }
 
 type Menu struct {
-	ID           int64    `json:"id"`
+	ID           string   `json:"id"`
 	Title        string   `json:"title"`
 	WeekStart    string   `json:"weekStart"`
 	Status       string   `json:"status"`
@@ -45,7 +45,7 @@ type Menu struct {
 	CheckedCount int      `json:"checkedCount"` // checked grocery items
 }
 
-func (s *server) loadMenu(hid, id int64) (*Menu, error) {
+func (s *server) loadMenu(hid, id string) (*Menu, error) {
 	m := &Menu{Meals: []Meal{}}
 	err := s.db.QueryRow(`SELECT id,title,week_start,status,budget,notes FROM menus WHERE id=? AND household_id=?`, id, hid).
 		Scan(&m.ID, &m.Title, &m.WeekStart, &m.Status, &m.Budget, &m.Notes)
@@ -58,7 +58,7 @@ func (s *server) loadMenu(hid, id int64) (*Menu, error) {
 	return m, nil
 }
 
-func (s *server) fillMenu(m *Menu, hid int64) error {
+func (s *server) fillMenu(m *Menu, hid string) error {
 	rows, err := s.db.Query(`SELECT mm.id,mm.recipe_id,r.name,r.meal_type,r.tags,mm.day,mm.slot,mm.status,r.prep_minutes+r.cook_minutes,
 		(SELECT SUM(i.unit_cost*ri.quantity) FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.recipe_id=r.id AND i.unit_cost IS NOT NULL)
 		FROM menu_meals mm JOIN recipes r ON r.id=mm.recipe_id WHERE mm.menu_id=?
@@ -124,7 +124,7 @@ func (s *server) menuByWeek(w http.ResponseWriter, r *http.Request, u *User) (an
 	if !validWeek(week) {
 		return nil, errBad("week must be YYYY-MM-DD")
 	}
-	var id int64
+	var id string
 	if err := s.db.QueryRow(`SELECT id FROM menus WHERE household_id=? AND week_start=?`, u.HouseholdID, week).Scan(&id); err != nil {
 		return nil, errNotFound
 	}
@@ -223,7 +223,7 @@ func (s *server) addMeal(w http.ResponseWriter, r *http.Request, u *User) (any, 
 		return nil, err
 	}
 	var in struct {
-		RecipeID int64  `json:"recipeId"`
+		RecipeID string `json:"recipeId"`
 		Day      *int   `json:"day"`
 		Slot     string `json:"slot"`
 	}
@@ -250,8 +250,8 @@ func (s *server) addMeal(w http.ResponseWriter, r *http.Request, u *User) (any, 
 	return s.loadMenu(u.HouseholdID, id)
 }
 
-func (s *server) mealMenuID(hid, mealID int64) (int64, error) {
-	var mid int64
+func (s *server) mealMenuID(hid, mealID string) (string, error) {
+	var mid string
 	err := s.db.QueryRow(`SELECT m.id FROM menu_meals mm JOIN menus m ON m.id=mm.menu_id WHERE mm.id=? AND m.household_id=?`, mealID, hid).Scan(&mid)
 	return mid, err
 }

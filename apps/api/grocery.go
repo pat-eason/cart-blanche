@@ -14,9 +14,9 @@ func parseTags(s string) []string {
 }
 
 type GroceryItem struct {
-	ID           int64    `json:"id"`
-	MenuID       int64    `json:"menuId"`
-	IngredientID *int64   `json:"ingredientId"`
+	ID           string   `json:"id"`
+	MenuID       string   `json:"menuId"`
+	IngredientID *string  `json:"ingredientId"`
 	Name         string   `json:"name"`
 	Quantity     float64  `json:"quantity"`
 	Unit         string   `json:"unit"`
@@ -36,7 +36,7 @@ type Grocery struct {
 	MenuStatus string        `json:"menuStatus"`
 }
 
-func (s *server) menuOwned(hid, id int64) error {
+func (s *server) menuOwned(hid, id string) error {
 	var n int
 	_ = s.db.QueryRow(`SELECT COUNT(*) FROM menus WHERE id=? AND household_id=?`, id, hid).Scan(&n)
 	if n == 0 {
@@ -45,7 +45,7 @@ func (s *server) menuOwned(hid, id int64) error {
 	return nil
 }
 
-func (s *server) loadGrocery(menuID int64) (*Grocery, error) {
+func (s *server) loadGrocery(menuID string) (*Grocery, error) {
 	g := &Grocery{Items: []GroceryItem{}}
 	_ = s.db.QueryRow(`SELECT status FROM menus WHERE id=?`, menuID).Scan(&g.MenuStatus)
 	rows, err := s.db.Query(`SELECT g.id,g.menu_id,g.ingredient_id,g.name,g.quantity,g.unit,g.category,g.unit_cost,g.checked,u.name,g.source
@@ -105,7 +105,7 @@ func (s *server) generateGrocery(w http.ResponseWriter, r *http.Request, u *User
 		category string
 		cost     *float64
 	}
-	need := map[int64]*agg{}
+	need := map[string]*agg{}
 	rows, err := s.db.Query(`SELECT i.id,i.name,i.unit,i.category,i.unit_cost,ri.quantity
 		FROM menu_meals mm JOIN recipe_ingredients ri ON ri.recipe_id=mm.recipe_id
 		JOIN ingredients i ON i.id=ri.ingredient_id WHERE mm.menu_id=?`, id)
@@ -113,7 +113,7 @@ func (s *server) generateGrocery(w http.ResponseWriter, r *http.Request, u *User
 		return nil, err
 	}
 	for rows.Next() {
-		var iid int64
+		var iid string
 		var a agg
 		var q float64
 		if err := rows.Scan(&iid, &a.name, &a.unit, &a.category, &a.cost, &q); err != nil {
@@ -135,14 +135,14 @@ func (s *server) generateGrocery(w http.ResponseWriter, r *http.Request, u *User
 	}
 	defer tx.Rollback()
 
-	existing := map[int64]int64{}
+	existing := map[string]string{}
 	er, err := tx.Query(`SELECT id,ingredient_id FROM grocery_items WHERE menu_id=? AND source='menu'`, id)
 	if err != nil {
 		return nil, err
 	}
 	for er.Next() {
-		var gid int64
-		var iid *int64
+		var gid string
+		var iid *string
 		_ = er.Scan(&gid, &iid)
 		if iid != nil {
 			existing[*iid] = gid
@@ -150,7 +150,7 @@ func (s *server) generateGrocery(w http.ResponseWriter, r *http.Request, u *User
 	}
 	er.Close()
 
-	keys := make([]int64, 0, len(need))
+	keys := make([]string, 0, len(need))
 	for k := range need {
 		keys = append(keys, k)
 	}
@@ -214,8 +214,8 @@ func (s *server) addGroceryItem(w http.ResponseWriter, r *http.Request, u *User)
 	return s.loadGrocery(id)
 }
 
-func (s *server) groceryMenuID(hid, itemID int64) (int64, error) {
-	var mid int64
+func (s *server) groceryMenuID(hid, itemID string) (string, error) {
+	var mid string
 	err := s.db.QueryRow(`SELECT m.id FROM grocery_items g JOIN menus m ON m.id=g.menu_id WHERE g.id=? AND m.household_id=?`, itemID, hid).Scan(&mid)
 	return mid, err
 }

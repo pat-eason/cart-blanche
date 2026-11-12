@@ -171,7 +171,7 @@ function Finder({ menu, recipes }: { menu: Menu; recipes: Recipe[] }) {
     queryFn: () => api.recommend({ count: 20, mealType, include, exclude, maxMinutes: maxMin || undefined }),
     staleTime: Infinity, enabled: tab === "suggest" && recipes.length > 0,
   })
-  const add = useMutation({ mutationFn: (id: number) => api.addMeal(menu.id, id), onSuccess: setMenu })
+  const add = useMutation({ mutationFn: (id: string) => api.addMeal(menu.id, id), onSuccess: setMenu })
   const suggestions: Suggestion[] = (recs.data ?? []).filter((s) => !inMenu.has(s.recipe.id)).slice(0, count)
 
   const cycle = (t: string) => setTagState((s) => {

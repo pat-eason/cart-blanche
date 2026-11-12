@@ -10,7 +10,7 @@ import (
 // ---------- ingredients ----------
 
 type Ingredient struct {
-	ID       int64    `json:"id"`
+	ID       string   `json:"id"`
 	Name     string   `json:"name"`
 	Unit     string   `json:"unit"`
 	Category string   `json:"category"`
@@ -120,7 +120,7 @@ func (s *server) deleteIngredient(w http.ResponseWriter, r *http.Request, u *Use
 // ---------- recipes ----------
 
 type RecipeIngredient struct {
-	IngredientID int64    `json:"ingredientId"`
+	IngredientID string   `json:"ingredientId"`
 	Name         string   `json:"name"`
 	Unit         string   `json:"unit"`
 	Category     string   `json:"category"`
@@ -130,7 +130,7 @@ type RecipeIngredient struct {
 }
 
 type Recipe struct {
-	ID           int64              `json:"id"`
+	ID           string             `json:"id"`
 	Name         string             `json:"name"`
 	Description  string             `json:"description"`
 	MealType     string             `json:"mealType"`
@@ -169,7 +169,7 @@ func scanRecipe(sc interface{ Scan(...any) error }) (*Recipe, error) {
 }
 
 func (s *server) attachIngredients(recipes []*Recipe) error {
-	byID := map[int64]*Recipe{}
+	byID := map[string]*Recipe{}
 	for _, r := range recipes {
 		byID[r.ID] = r
 	}
@@ -190,7 +190,7 @@ func (s *server) attachIngredients(recipes []*Recipe) error {
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var rid int64
+		var rid string
 		var ri RecipeIngredient
 		if err := rows.Scan(&rid, &ri.IngredientID, &ri.Name, &ri.Unit, &ri.Category, &ri.UnitCost, &ri.Quantity, &ri.Note); err != nil {
 			return err
@@ -209,7 +209,7 @@ func (s *server) attachIngredients(recipes []*Recipe) error {
 	return rows.Err()
 }
 
-func (s *server) loadRecipes(hid int64, where string, args ...any) ([]*Recipe, error) {
+func (s *server) loadRecipes(hid string, where string, args ...any) ([]*Recipe, error) {
 	rows, err := s.db.Query(recipeSelect+` WHERE r.household_id=? `+where+` ORDER BY lower(r.name)`, append([]any{hid}, args...)...)
 	if err != nil {
 		return nil, err
@@ -261,10 +261,10 @@ func normalizeTags(tags []string) []string {
 	return out
 }
 
-func (s *server) saveRecipe(id int64, u *User, in *Recipe) (int64, error) {
+func (s *server) saveRecipe(id string, u *User, in *Recipe) (string, error) {
 	in.Name = strings.TrimSpace(in.Name)
 	if in.Name == "" {
-		return 0, errBad("recipe name is required")
+		return "", errBad("recipe name is required")
 	}
 	if in.MealType == "" {
 		in.MealType = "dinner"
@@ -276,41 +276,41 @@ func (s *server) saveRecipe(id int64, u *User, in *Recipe) (int64, error) {
 
 	tx, err := s.db.Begin()
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	defer tx.Rollback()
 
-	if id == 0 {
+	if id == "" {
 		id, err = tx.InsertID(`INSERT INTO recipes(household_id,name,description,meal_type,tags,prep_minutes,cook_minutes,servings,instructions,created_by)
 			VALUES(?,?,?,?,?,?,?,?,?,?)`, u.HouseholdID, in.Name, in.Description, in.MealType, string(tags), in.PrepMinutes, in.CookMinutes, in.Servings, in.Instructions, u.ID)
 		if err != nil {
-			return 0, err
+			return "", err
 		}
 	} else {
 		res, err := tx.Exec(`UPDATE recipes SET name=?,description=?,meal_type=?,tags=?,prep_minutes=?,cook_minutes=?,servings=?,instructions=? WHERE id=? AND household_id=?`,
 			in.Name, in.Description, in.MealType, string(tags), in.PrepMinutes, in.CookMinutes, in.Servings, in.Instructions, id, u.HouseholdID)
 		if err != nil {
-			return 0, err
+			return "", err
 		}
 		if n, _ := res.RowsAffected(); n == 0 {
-			return 0, errNotFound
+			return "", errNotFound
 		}
 		if _, err := tx.Exec(`DELETE FROM recipe_ingredients WHERE recipe_id=?`, id); err != nil {
-			return 0, err
+			return "", err
 		}
 	}
 	for _, ri := range in.Ingredients {
 		// make sure ingredient belongs to this household
 		var ok int
 		if err := tx.QueryRow(`SELECT COUNT(*) FROM ingredients WHERE id=? AND household_id=?`, ri.IngredientID, u.HouseholdID).Scan(&ok); err != nil || ok == 0 {
-			return 0, errBad("unknown ingredient in recipe")
+			return "", errBad("unknown ingredient in recipe")
 		}
 		q := ri.Quantity
 		if q <= 0 {
 			q = 1
 		}
 		if _, err := tx.Exec(`INSERT INTO recipe_ingredients(recipe_id,ingredient_id,quantity,note) VALUES(?,?,?,?)`, id, ri.IngredientID, q, ri.Note); err != nil {
-			return 0, err
+			return "", err
 		}
 	}
 	return id, tx.Commit()
@@ -321,7 +321,7 @@ func (s *server) createRecipe(w http.ResponseWriter, r *http.Request, u *User) (
 	if err := decode(r, &in); err != nil {
 		return nil, err
 	}
-	id, err := s.saveRecipe(0, u, &in)
+	id, err := s.saveRecipe("", u, &in)
 	if err != nil {
 		return nil, err
 	}

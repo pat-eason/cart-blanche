@@ -43,7 +43,7 @@ func newInviteCode() string {
 	return string(out[:4]) + "-" + string(out[4:])
 }
 
-func (s *server) startSession(w http.ResponseWriter, userID int64) error {
+func (s *server) startSession(w http.ResponseWriter, userID string) error {
 	tok := randToken(32)
 	exp := time.Now().Add(sessionTTL)
 	if _, err := s.db.Exec(`INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)`,
@@ -146,7 +146,7 @@ func (s *server) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var hid int64
+	var hid string
 	if code := strings.ToUpper(strings.TrimSpace(in.InviteCode)); code != "" {
 		if err := tx.QueryRow(`SELECT id FROM households WHERE invite_code=?`, code).Scan(&hid); err != nil {
 			writeErr(w, errBad("that invite code wasn't found"))
@@ -213,19 +213,19 @@ func (s *server) me(w http.ResponseWriter, r *http.Request, u *User) (any, error
 // ---------- household ----------
 
 type Member struct {
-	ID    int64  `json:"id"`
+	ID    string `json:"id"`
 	Name  string `json:"name"`
 	Email string `json:"email"`
 }
 
 type Household struct {
-	ID         int64    `json:"id"`
+	ID         string   `json:"id"`
 	Name       string   `json:"name"`
 	InviteCode string   `json:"inviteCode"`
 	Members    []Member `json:"members"`
 }
 
-func (s *server) loadHousehold(id int64) (*Household, error) {
+func (s *server) loadHousehold(id string) (*Household, error) {
 	h := &Household{ID: id, Members: []Member{}}
 	if err := s.db.QueryRow(`SELECT name,invite_code FROM households WHERE id=?`, id).Scan(&h.Name, &h.InviteCode); err != nil {
 		return nil, err
@@ -273,7 +273,7 @@ func (s *server) joinHousehold(w http.ResponseWriter, r *http.Request, u *User) 
 	if err := decode(r, &in); err != nil {
 		return nil, err
 	}
-	var hid int64
+	var hid string
 	if err := s.db.QueryRow(`SELECT id FROM households WHERE invite_code=?`, strings.ToUpper(strings.TrimSpace(in.Code))).Scan(&hid); err != nil {
 		return nil, errBad("that invite code wasn't found")
 	}

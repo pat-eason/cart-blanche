@@ -7,7 +7,7 @@ import { api, ApiError, type Ingredient, type RecipeInput } from "../lib/api"
 import { useIngredients } from "../lib/hooks"
 import { CATEGORIES, cap, MEAL_TYPES, money, qty } from "../lib/util"
 
-interface Line { ingredientId: number; quantity: string; note: string }
+interface Line { ingredientId: string; quantity: string; note: string }
 
 export default function RecipeEdit() {
   const { id } = useParams()
@@ -15,7 +15,7 @@ export default function RecipeEdit() {
   const nav = useNavigate()
   const qc = useQueryClient()
   const ingsQ = useIngredients()
-  const recipeQ = useQuery({ queryKey: ["recipe", id], queryFn: () => api.recipe(+id!), enabled: editing })
+  const recipeQ = useQuery({ queryKey: ["recipe", id], queryFn: () => api.recipe(id!), enabled: editing })
 
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
@@ -50,18 +50,18 @@ export default function RecipeEdit() {
         prepMinutes: parseInt(prep) || 0, cookMinutes: parseInt(cook) || 0, instructions,
         ingredients: lines.map((l) => ({ ingredientId: l.ingredientId, quantity: parseFloat(l.quantity) || 1, note: l.note })),
       }
-      return editing ? api.updateRecipe(+id!, body) : api.createRecipe(body)
+      return editing ? api.updateRecipe(id!, body) : api.createRecipe(body)
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["recipes"] }); qc.invalidateQueries({ queryKey: ["recipe"] }); nav("/recipes") },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't save"),
   })
   const remove = useMutation({
-    mutationFn: () => api.deleteRecipe(+id!),
+    mutationFn: () => api.deleteRecipe(id!),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["recipes"] }); nav("/recipes") },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't delete"),
   })
   const avoid = useMutation({
-    mutationFn: (v: boolean) => api.setAvoid(+id!, v),
+    mutationFn: (v: boolean) => api.setAvoid(id!, v),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["recipes"] }); qc.invalidateQueries({ queryKey: ["recipe", id] }) },
   })
 
@@ -128,7 +128,7 @@ export default function RecipeEdit() {
   )
 }
 
-export function IngredientPicker({ ingredients, used, onPick }: { ingredients: Ingredient[]; used: Set<number>; onPick: (i: Ingredient) => void }) {
+export function IngredientPicker({ ingredients, used, onPick }: { ingredients: Ingredient[]; used: Set<string>; onPick: (i: Ingredient) => void }) {
   const qc = useQueryClient()
   const [text, setText] = useState("")
   const [open, setOpen] = useState(false)

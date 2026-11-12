@@ -25,7 +25,7 @@ export default function Dashboard() {
     enabled: !menuQ.isLoading && (recipesQ.data?.length ?? 0) > 0,
   })
   const add = useMutation({
-    mutationFn: async (rid: number) => {
+    mutationFn: async (rid: string) => {
       const m = menu ?? await api.createMenu(week)
       return api.addMeal(m.id, rid)
     }, onSuccess: setMenu,
