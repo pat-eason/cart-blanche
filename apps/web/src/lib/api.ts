@@ -72,6 +72,7 @@ const put = <T,>(p: string, b: unknown) => req<T>("PUT", p, b)
 const del = <T,>(p: string) => req<T>("DELETE", p)
 
 export const api = {
+  config: () => get<{ registrationEnabled: boolean }>("/config"),
   me: () => get<User>("/me"),
   login: (email: string, password: string) => post<User>("/auth/login", { email, password }),
   register: (b: { email: string; password: string; name: string; inviteCode?: string }) => post<User>("/auth/register", b),

@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { Bag } from "../components/Bag"
 import { api, ApiError } from "../lib/api"
 import { useAuth } from "../lib/auth"
+import { useQuery } from "@tanstack/react-query"
 
 export default function AuthPage({ mode }: { mode: "login" | "register" }) {
   const nav = useNavigate()
@@ -16,6 +17,8 @@ export default function AuthPage({ mode }: { mode: "login" | "register" }) {
   const [err, setErr] = useState("")
   const [busy, setBusy] = useState(false)
   const reg = mode === "register"
+  const cfg = useQuery({ queryKey: ["config"], queryFn: api.config, staleTime: Infinity, retry: false })
+  const canRegister = cfg.data?.registrationEnabled !== false
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -58,7 +61,7 @@ export default function AuthPage({ mode }: { mode: "login" | "register" }) {
             <button className="btn primary" disabled={busy}>{busy ? "One moment…" : reg ? "Create account" : "Sign in"}</button>
           </form>
           <p className="small muted" style={{ textAlign: "center", marginTop: "1rem" }}>
-            {reg ? <>Already have an account? <Link to="/login">Sign in</Link></> : <>New here? <Link to="/register">Create an account</Link></>}
+            {reg ? <>Already have an account? <Link to="/login">Sign in</Link></> : canRegister ? <>New here? <Link to="/register">Create an account</Link></> : null}
           </p>
         </div>
       </motion.div>

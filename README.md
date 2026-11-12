@@ -134,4 +134,5 @@ shares one origin, keep the cookie path and name app-specific (they are).
 | `ADDR` | `:8080` | listen address |
 | `DATABASE_URL` | `postgres://cartblanche:cartblanche@localhost:5433/cartblanche?sslmode=disable` | Postgres connection string (compose sets this for you) |
 | `COOKIE_SECURE` | `false` | mark session cookie `Secure` |
+| `DISABLE_REGISTRATION` | `false` | `true` blocks new sign-ups (API returns 403, UI hides the link) |
 | `COOKIE_PATH` | `/` | session cookie `Path` (the droplet uses `/cart-blanche`) |

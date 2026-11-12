@@ -1,7 +1,9 @@
+import { useQuery } from "@tanstack/react-query"
 import { AnimatePresence, motion } from "framer-motion"
 import { Navigate, Route, Routes, useLocation } from "react-router-dom"
 import { Layout } from "./components/Layout"
 import { Spinner } from "./components/ui"
+import { api } from "./lib/api"
 import { useAuth } from "./lib/auth"
 import AuthPage from "./pages/Auth"
 import Dashboard from "./pages/Dashboard"
@@ -18,12 +20,14 @@ import More from "./pages/More"
 export default function App() {
   const { user, loading } = useAuth()
   const loc = useLocation()
+  const cfg = useQuery({ queryKey: ["config"], queryFn: api.config, staleTime: Infinity, retry: false })
+  const canRegister = cfg.data?.registrationEnabled !== false
   if (loading) return <Spinner />
   if (!user) {
     return (
       <Routes>
         <Route path="/login" element={<AuthPage mode="login" />} />
-        <Route path="/register" element={<AuthPage mode="register" />} />
+        <Route path="/register" element={canRegister ? <AuthPage mode="register" /> : <Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/login" replace state={{ from: loc.pathname }} />} />
       </Routes>
     )

@@ -82,6 +82,10 @@ type credentials struct {
 }
 
 func (s *server) register(w http.ResponseWriter, r *http.Request) {
+	if s.noSignup {
+		writeErr(w, apiErr{http.StatusForbidden, "registration is disabled"})
+		return
+	}
 	var in credentials
 	if err := decode(r, &in); err != nil {
 		writeErr(w, err)

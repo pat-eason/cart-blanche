@@ -16,6 +16,7 @@ type server struct {
 	db           *DB
 	secureCookie bool
 	cookiePath   string
+	noSignup     bool
 }
 
 type ctxKey int
@@ -35,7 +36,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := &server{db: db, secureCookie: env("COOKIE_SECURE", "false") == "true", cookiePath: env("COOKIE_PATH", "/")}
+	s := &server{db: db, secureCookie: env("COOKIE_SECURE", "false") == "true", cookiePath: env("COOKIE_PATH", "/"), noSignup: env("DISABLE_REGISTRATION", "false") == "true"}
 
 	mux := http.NewServeMux()
 	s.routes(mux)
@@ -143,6 +144,10 @@ func (s *server) authed(h handler) http.HandlerFunc {
 func (s *server) routes(m *http.ServeMux) {
 	m.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]string{"status": "ok"})
+	})
+
+	m.HandleFunc("GET /api/config", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, map[string]bool{"registrationEnabled": !s.noSignup})
 	})
 
 	// auth

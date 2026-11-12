@@ -30,6 +30,8 @@ services:
       DATABASE_URL: postgres://cartblanche:${POSTGRES_PASSWORD:-cartblanche}@db:5432/cartblanche?sslmode=disable
       # docker-compose.prod.yml turns this on: the droplet always serves HTTPS via the shared proxy.
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # Set to true to block new sign-ups (existing users can still sign in).
+      DISABLE_REGISTRATION: ${DISABLE_REGISTRATION:-false}
 
   web:
     build:
