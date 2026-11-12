@@ -133,8 +133,11 @@ jobs:
         run: printf '%s' "$GHCR_TOKEN" | ssh droplet "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
 
       - name: Pull images and restart
+        env:
+          # GitHub secret REGISTRATION: "false" disables new sign-ups; anything else (or unset) leaves them open.
+          REGISTRATION: ${{ secrets.REGISTRATION }}
         run: |
-          ssh droplet "API_IMAGE='${{ needs.images.outputs.api }}' WEB_IMAGE='${{ needs.images.outputs.web }}' bash -s" <<'REMOTE'
+          ssh droplet "REGISTRATION='${REGISTRATION}' API_IMAGE='${{ needs.images.outputs.api }}' WEB_IMAGE='${{ needs.images.outputs.web }}' bash -s" <<'REMOTE'
           set -euo pipefail
           cd /opt/cart-blanche
           # First deploy only: create .env with a random database password. Never overwritten afterwards,
@@ -144,6 +147,7 @@ jobs:
             chmod 600 .env
           fi
           export COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
+          if [ "${REGISTRATION:-}" = "false" ]; then export DISABLE_REGISTRATION=true; else export DISABLE_REGISTRATION=false; fi
           docker compose pull api web
           docker compose up -d --no-build --remove-orphans
           echo "waiting for the API to report healthy..."
