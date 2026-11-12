@@ -134,5 +134,7 @@ shares one origin, keep the cookie path and name app-specific (they are).
 | `ADDR` | `:8080` | listen address |
 | `DATABASE_URL` | `postgres://cartblanche:cartblanche@localhost:5433/cartblanche?sslmode=disable` | Postgres connection string (compose sets this for you) |
 | `COOKIE_SECURE` | `false` | mark session cookie `Secure` |
-| `DISABLE_REGISTRATION` | `false` | `true` blocks new sign-ups (API returns 403, UI hides the link). In CI this is driven by the `REGISTRATION` GitHub secret: `false` disables registration |
+| `REGISTRATION_MODE` | `open` | `open` (anyone), `invite` (needs `REGISTRATION_INVITE_CODE`) or `closed` (API returns 403, UI hides the link). In CI this comes from the `REGISTRATION_MODE` secret, defaulting to `closed` |
+| `REGISTRATION_INVITE_CODE` | | site-wide code for `invite` mode (8+ chars; CI secret of the same name). Wrong guesses are limited to 5 per IP per 15 minutes, 50 overall, then 429 |
+| `TRUSTED_PROXY_HOPS` | `0` | reverse proxies in front of the API, so the rate limiter sees the real client IP (compose sets 1, prod 2) |
 | `COOKIE_PATH` | `/` | session cookie `Path` (the droplet uses `/cart-blanche`) |

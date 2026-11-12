@@ -72,10 +72,10 @@ const put = <T,>(p: string, b: unknown) => req<T>("PUT", p, b)
 const del = <T,>(p: string) => req<T>("DELETE", p)
 
 export const api = {
-  config: () => get<{ registrationEnabled: boolean }>("/config"),
+  config: () => get<{ registration: "open" | "invite" | "closed" }>("/config"),
   me: () => get<User>("/me"),
   login: (email: string, password: string) => post<User>("/auth/login", { email, password }),
-  register: (b: { email: string; password: string; name: string; inviteCode?: string }) => post<User>("/auth/register", b),
+  register: (b: { email: string; password: string; name: string; inviteCode?: string; registrationCode?: string }) => post<User>("/auth/register", b),
   logout: () => post<void>("/auth/logout"),
 
   household: () => get<Household>("/household"),

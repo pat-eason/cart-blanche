@@ -3,11 +3,13 @@ package main
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"net/http"
 	"net/mail"
+	"strconv"
 	"strings"
 	"time"
 
@@ -78,17 +80,38 @@ type credentials struct {
 	Email      string `json:"email"`
 	Password   string `json:"password"`
 	Name       string `json:"name"`
-	InviteCode string `json:"inviteCode"`
+	InviteCode string `json:"inviteCode"` // household invite code
+	// RegistrationCode is the site-wide code required when REGISTRATION_MODE=invite.
+	RegistrationCode string `json:"registrationCode"`
+}
+
+// checkRegistrationCode enforces invite-only mode with per-IP lockout and a global failure ceiling.
+func (s *server) checkRegistrationCode(w http.ResponseWriter, r *http.Request, given string) bool {
+	ip := clientIP(r, s.proxyHops)
+	if ok, wait := s.codeGuard.allowed(ip); !ok {
+		w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
+		writeErr(w, apiErr{http.StatusTooManyRequests, "too many attempts, try again later"})
+		return false
+	}
+	if subtle.ConstantTimeCompare([]byte(strings.TrimSpace(given)), []byte(s.regCode)) != 1 {
+		s.codeGuard.fail(ip)
+		writeErr(w, apiErr{http.StatusForbidden, "that registration code isn't valid"})
+		return false
+	}
+	return true
 }
 
 func (s *server) register(w http.ResponseWriter, r *http.Request) {
-	if s.noSignup {
-		writeErr(w, apiErr{http.StatusForbidden, "registration is disabled"})
+	if s.regMode == "closed" {
+		writeErr(w, apiErr{http.StatusForbidden, "registration is closed"})
 		return
 	}
 	var in credentials
 	if err := decode(r, &in); err != nil {
 		writeErr(w, err)
+		return
+	}
+	if s.regMode == "invite" && !s.checkRegistrationCode(w, r, in.RegistrationCode) {
 		return
 	}
 	in.Email = strings.TrimSpace(in.Email)

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -16,7 +17,10 @@ type server struct {
 	db           *DB
 	secureCookie bool
 	cookiePath   string
-	noSignup     bool
+	regMode      string // open | invite | closed
+	regCode      string
+	proxyHops    int
+	codeGuard    *guard
 }
 
 type ctxKey int
@@ -36,7 +40,20 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := &server{db: db, secureCookie: env("COOKIE_SECURE", "false") == "true", cookiePath: env("COOKIE_PATH", "/"), noSignup: env("DISABLE_REGISTRATION", "false") == "true"}
+	s := &server{db: db, secureCookie: env("COOKIE_SECURE", "false") == "true", cookiePath: env("COOKIE_PATH", "/")}
+	s.regMode = strings.ToLower(strings.TrimSpace(env("REGISTRATION_MODE", "open")))
+	s.regCode = strings.TrimSpace(os.Getenv("REGISTRATION_INVITE_CODE"))
+	s.proxyHops, _ = strconv.Atoi(env("TRUSTED_PROXY_HOPS", "0"))
+	s.codeGuard = newGuard(15*time.Minute, 5, 50)
+	switch s.regMode {
+	case "open", "closed":
+	case "invite":
+		if len(s.regCode) < 8 {
+			log.Fatal("REGISTRATION_MODE=invite requires REGISTRATION_INVITE_CODE of at least 8 characters")
+		}
+	default:
+		log.Fatalf("REGISTRATION_MODE must be open, invite or closed (got %q)", s.regMode)
+	}
 
 	mux := http.NewServeMux()
 	s.routes(mux)
@@ -147,7 +164,7 @@ func (s *server) routes(m *http.ServeMux) {
 	})
 
 	m.HandleFunc("GET /api/config", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, 200, map[string]bool{"registrationEnabled": !s.noSignup})
+		writeJSON(w, 200, map[string]string{"registration": s.regMode})
 	})
 
 	// auth

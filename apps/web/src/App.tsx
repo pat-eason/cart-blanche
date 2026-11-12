@@ -21,7 +21,7 @@ export default function App() {
   const { user, loading } = useAuth()
   const loc = useLocation()
   const cfg = useQuery({ queryKey: ["config"], queryFn: api.config, staleTime: Infinity, retry: false })
-  const canRegister = cfg.data?.registrationEnabled !== false
+  const canRegister = cfg.data?.registration !== "closed"
   if (loading) return <Spinner />
   if (!user) {
     return (

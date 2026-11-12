@@ -134,10 +134,11 @@ jobs:
 
       - name: Pull images and restart
         env:
-          # GitHub secret REGISTRATION: "false" disables new sign-ups; anything else (or unset) leaves them open.
-          REGISTRATION: ${{ secrets.REGISTRATION }}
+          # open | invite | closed (defaults to closed if the secret is unset).
+          REGISTRATION_MODE: ${{ secrets.REGISTRATION_MODE }}
+          REGISTRATION_INVITE_CODE: ${{ secrets.REGISTRATION_INVITE_CODE }}
         run: |
-          ssh droplet "REGISTRATION='${REGISTRATION}' API_IMAGE='${{ needs.images.outputs.api }}' WEB_IMAGE='${{ needs.images.outputs.web }}' bash -s" <<'REMOTE'
+          ssh droplet "REGISTRATION_MODE='${REGISTRATION_MODE:-closed}' REGISTRATION_INVITE_CODE='${REGISTRATION_INVITE_CODE}' API_IMAGE='${{ needs.images.outputs.api }}' WEB_IMAGE='${{ needs.images.outputs.web }}' bash -s" <<'REMOTE'
           set -euo pipefail
           cd /opt/cart-blanche
           # First deploy only: create .env with a random database password. Never overwritten afterwards,
@@ -147,7 +148,7 @@ jobs:
             chmod 600 .env
           fi
           export COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
-          if [ "${REGISTRATION:-}" = "false" ]; then export DISABLE_REGISTRATION=true; else export DISABLE_REGISTRATION=false; fi
+          export REGISTRATION_MODE REGISTRATION_INVITE_CODE
           docker compose pull api web
           docker compose up -d --no-build --remove-orphans
           echo "waiting for the API to report healthy..."

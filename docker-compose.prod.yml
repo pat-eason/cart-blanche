@@ -11,6 +11,7 @@ services:
   api:
     environment:
       COOKIE_SECURE: ${COOKIE_SECURE:-true} # the proxy always serves HTTPS
+      TRUSTED_PROXY_HOPS: 2 # shared Caddy proxy -> nginx -> api
       COOKIE_PATH: /cart-blanche # apps share one origin; keep our session cookie to our own path
 
   web:

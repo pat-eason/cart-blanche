@@ -18,13 +18,15 @@ export default function AuthPage({ mode }: { mode: "login" | "register" }) {
   const [busy, setBusy] = useState(false)
   const reg = mode === "register"
   const cfg = useQuery({ queryKey: ["config"], queryFn: api.config, staleTime: Infinity, retry: false })
-  const canRegister = cfg.data?.registrationEnabled !== false
+  const canRegister = cfg.data?.registration !== "closed"
+  const needsCode = cfg.data?.registration === "invite"
+  const [regCode, setRegCode] = useState(sp.get("code") ?? "")
 
   async function submit(e: FormEvent) {
     e.preventDefault()
     setErr(""); setBusy(true)
     try {
-      const u = reg ? await api.register({ email, password, name, inviteCode: invite || undefined }) : await api.login(email, password)
+      const u = reg ? await api.register({ email, password, name, inviteCode: invite || undefined, registrationCode: needsCode ? regCode : undefined }) : await api.login(email, password)
       setUser(u)
       nav("/", { replace: true })
     } catch (e) {
@@ -53,6 +55,10 @@ export default function AuthPage({ mode }: { mode: "login" | "register" }) {
             <div className="field"><label htmlFor="pw">Password</label>
               <input id="pw" className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={reg ? "new-password" : "current-password"} minLength={reg ? 8 : undefined} required />
               {reg && <span className="muted small">At least 8 characters.</span>}</div>
+            {reg && needsCode && (
+              <div className="field"><label htmlFor="rc">Registration code</label>
+                <input id="rc" className="input" value={regCode} onChange={(e) => setRegCode(e.target.value)} autoComplete="off" required /></div>
+            )}
             {reg && (
               <div className="field"><label htmlFor="inv">Household invite code <span className="muted">(optional)</span></label>
                 <input id="inv" className="input" value={invite} onChange={(e) => setInvite(e.target.value.toUpperCase())} placeholder="ABCD-2345" /></div>
