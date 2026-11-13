@@ -16,6 +16,7 @@ import History from "./pages/History"
 import Trends from "./pages/Trends"
 import HouseholdPage from "./pages/Household"
 import More from "./pages/More"
+import SettingsPage from "./pages/Settings"
 
 export default function App() {
   const { user, loading } = useAuth()
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/history" element={<History />} />
             <Route path="/trends" element={<Trends />} />
             <Route path="/household" element={<HouseholdPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="/more" element={<More />} />
             <Route path="/login" element={<Navigate to="/" replace />} />
             <Route path="/register" element={<Navigate to="/" replace />} />

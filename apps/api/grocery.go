@@ -104,9 +104,13 @@ func (s *server) generateGrocery(w http.ResponseWriter, r *http.Request, u *User
 		unit     string
 		category string
 		cost     *float64
+		iid      string
 	}
+	// Totals are keyed by ingredient + unit. Quantities written in a unit comparable to the
+	// ingredient's own (tbsp / cup / tsp…) are converted and summed into it; anything
+	// that can't be converted gets its own line in the unit it was written in.
 	need := map[string]*agg{}
-	rows, err := s.db.Query(`SELECT i.id,i.name,i.unit,i.category,i.unit_cost,ri.quantity
+	rows, err := s.db.Query(`SELECT i.id,i.name,i.unit,i.category,i.unit_cost,ri.quantity,ri.unit
 		FROM menu_meals mm JOIN recipe_ingredients ri ON ri.recipe_id=mm.recipe_id
 		JOIN ingredients i ON i.id=ri.ingredient_id WHERE mm.menu_id=?`, id)
 	if err != nil {
@@ -116,15 +120,26 @@ func (s *server) generateGrocery(w http.ResponseWriter, r *http.Request, u *User
 		var iid string
 		var a agg
 		var q float64
-		if err := rows.Scan(&iid, &a.name, &a.unit, &a.category, &a.cost, &q); err != nil {
+		var riUnit string
+		if err := rows.Scan(&iid, &a.name, &a.unit, &a.category, &a.cost, &q, &riUnit); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		if ex, ok := need[iid]; ok {
+		riUnit = strings.TrimSpace(riUnit)
+		if riUnit != "" {
+			if c, ok := convertQty(q, riUnit, a.unit); ok {
+				q = c
+			} else {
+				a.unit, a.cost = riUnit, nil // not comparable: separate line, can't be priced
+			}
+		}
+		key := iid + "|" + a.unit
+		if ex, ok := need[key]; ok {
 			ex.qty += q
 		} else {
 			a.qty = q
-			need[iid] = &a
+			a.iid = iid
+			need[key] = &a
 		}
 	}
 	rows.Close()
@@ -136,16 +151,17 @@ func (s *server) generateGrocery(w http.ResponseWriter, r *http.Request, u *User
 	defer tx.Rollback()
 
 	existing := map[string]string{}
-	er, err := tx.Query(`SELECT id,ingredient_id FROM grocery_items WHERE menu_id=? AND source='menu'`, id)
+	er, err := tx.Query(`SELECT id,ingredient_id,unit FROM grocery_items WHERE menu_id=? AND source='menu'`, id)
 	if err != nil {
 		return nil, err
 	}
 	for er.Next() {
 		var gid string
 		var iid *string
-		_ = er.Scan(&gid, &iid)
+		var unit string
+		_ = er.Scan(&gid, &iid, &unit)
 		if iid != nil {
-			existing[*iid] = gid
+			existing[*iid+"|"+unit] = gid
 		}
 	}
 	er.Close()
@@ -155,14 +171,15 @@ func (s *server) generateGrocery(w http.ResponseWriter, r *http.Request, u *User
 		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(a, b int) bool { return keys[a] < keys[b] })
-	for _, iid := range keys {
-		a := need[iid]
-		if gid, ok := existing[iid]; ok {
+	for _, key := range keys {
+		a := need[key]
+		iid := a.iid
+		if gid, ok := existing[key]; ok {
 			if _, err := tx.Exec(`UPDATE grocery_items SET quantity=?,name=?,unit=?,category=?,unit_cost=? WHERE id=?`,
 				a.qty, a.name, a.unit, a.category, a.cost, gid); err != nil {
 				return nil, err
 			}
-			delete(existing, iid)
+			delete(existing, key)
 		} else if _, err := tx.Exec(`INSERT INTO grocery_items(menu_id,ingredient_id,name,quantity,unit,category,unit_cost,source) VALUES(?,?,?,?,?,?,?,'menu')`,
 			id, iid, a.name, a.qty, a.unit, a.category, a.cost); err != nil {
 			return nil, err

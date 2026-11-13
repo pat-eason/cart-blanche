@@ -1,3 +1,4 @@
+import { UNIT_GROUPS, unitOptions } from "../lib/units"
 import { AnimatePresence, motion } from "framer-motion"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { Bag } from "./Bag"
@@ -171,5 +172,15 @@ export function HBars({ items, accent, fmt }: { items: { name: string; count: nu
         </div>
       ))}
     </div>
+  )
+}
+
+export function UnitSelect({ value, onChange, id, label, style }: { value: string; onChange: (u: string) => void; id?: string; label?: string; style?: React.CSSProperties }) {
+  return (
+    <select id={id} className="input" aria-label={label ?? "Unit"} style={style} value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">— none —</option>
+      {unitOptions(value).map((u) => <option key={u} value={u}>{u}</option>)}
+      {UNIT_GROUPS.map((g) => <optgroup key={g.label} label={g.label}>{g.units.map((u) => <option key={u} value={u}>{u}</option>)}</optgroup>)}
+    </select>
   )
 }

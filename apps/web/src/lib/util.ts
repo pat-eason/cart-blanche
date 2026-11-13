@@ -1,3 +1,6 @@
+import { getSettings } from "./settings"
+import { toFraction } from "./units"
+
 export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 export const DAYS_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 export const MEAL_TYPES = ["dinner", "lunch", "breakfast", "snack", "dessert"]
@@ -47,9 +50,9 @@ export function shortWeek(week: string): string {
 export const money = (n: number | null | undefined) =>
   n == null ? "—" : n.toLocaleString(undefined, { style: "currency", currency: "USD", minimumFractionDigits: n % 1 === 0 ? 0 : 2 })
 
+/** Quantity for display: a readable fraction when the "fractions" setting is on, else a decimal. */
 export function qty(n: number): string {
-  const r = Math.round(n * 100) / 100
-  return String(r)
+  return getSettings().fractions ? toFraction(n) : String(Math.round(n * 100) / 100)
 }
 
 export function greeting(): string {

@@ -13,7 +13,7 @@ export interface Recipe {
   timesPlanned: number; timesCooked: number; lastPlanned: string | null
 }
 export type RecipeInput = Omit<Recipe, "id" | "avoid" | "estCost" | "timesPlanned" | "timesCooked" | "lastPlanned" | "ingredients"> & {
-  ingredients: { ingredientId: string; quantity: number; note: string }[]
+  ingredients: { ingredientId: string; quantity: number; unit: string; note: string }[]
 }
 export type MealStatus = "planned" | "cooked" | "skipped"
 export interface Meal {

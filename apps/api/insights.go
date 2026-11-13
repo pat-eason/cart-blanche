@@ -215,7 +215,7 @@ func (s *server) stats(w http.ResponseWriter, r *http.Request, u *User) (any, er
 	rows.Close()
 
 	mr, err := s.db.Query(`SELECT mm.menu_id, mm.status,
-		(SELECT SUM(i.unit_cost*ri.quantity) FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.recipe_id=mm.recipe_id AND i.unit_cost IS NOT NULL)
+		(SELECT SUM(i.unit_cost*(`+qtyInIngredientUnit()+`)) FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.recipe_id=mm.recipe_id AND i.unit_cost IS NOT NULL)
 		FROM menu_meals mm JOIN menus m ON m.id=mm.menu_id WHERE m.household_id=? AND m.week_start>=?`, u.HouseholdID, since)
 	if err != nil {
 		return nil, err

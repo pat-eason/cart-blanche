@@ -182,7 +182,7 @@ func (s *server) attachIngredients(recipes []*Recipe) error {
 		ph = append(ph, "?")
 		args = append(args, id)
 	}
-	rows, err := s.db.Query(`SELECT ri.recipe_id,i.id,i.name,i.unit,i.category,i.unit_cost,ri.quantity,ri.note
+	rows, err := s.db.Query(`SELECT ri.recipe_id,i.id,i.name,COALESCE(NULLIF(ri.unit,''),i.unit),i.unit,i.category,i.unit_cost,ri.quantity,ri.note
 		FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id
 		WHERE ri.recipe_id IN (`+strings.Join(ph, ",")+`) ORDER BY ri.id`, args...)
 	if err != nil {
@@ -192,13 +192,15 @@ func (s *server) attachIngredients(recipes []*Recipe) error {
 	for rows.Next() {
 		var rid string
 		var ri RecipeIngredient
-		if err := rows.Scan(&rid, &ri.IngredientID, &ri.Name, &ri.Unit, &ri.Category, &ri.UnitCost, &ri.Quantity, &ri.Note); err != nil {
+		var baseUnit string
+		if err := rows.Scan(&rid, &ri.IngredientID, &ri.Name, &ri.Unit, &baseUnit, &ri.Category, &ri.UnitCost, &ri.Quantity, &ri.Note); err != nil {
 			return err
 		}
 		if rc, ok := byID[rid]; ok {
 			rc.Ingredients = append(rc.Ingredients, ri)
 			if ri.UnitCost != nil {
-				c := *ri.UnitCost * ri.Quantity
+				q, _ := convertQty(ri.Quantity, ri.Unit, baseUnit)
+				c := *ri.UnitCost * q
 				if rc.EstCost == nil {
 					rc.EstCost = new(float64)
 				}
@@ -309,7 +311,7 @@ func (s *server) saveRecipe(id string, u *User, in *Recipe) (string, error) {
 		if q <= 0 {
 			q = 1
 		}
-		if _, err := tx.Exec(`INSERT INTO recipe_ingredients(recipe_id,ingredient_id,quantity,note) VALUES(?,?,?,?)`, id, ri.IngredientID, q, ri.Note); err != nil {
+		if _, err := tx.Exec(`INSERT INTO recipe_ingredients(recipe_id,ingredient_id,quantity,unit,note) VALUES(?,?,?,?,?)`, id, ri.IngredientID, q, strings.TrimSpace(ri.Unit), ri.Note); err != nil {
 			return "", err
 		}
 	}

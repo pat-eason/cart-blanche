@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS grocery_items (
   source TEXT NOT NULL DEFAULT 'menu',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE recipe_ingredients ADD COLUMN IF NOT EXISTS unit TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_menu_meals_menu ON menu_meals(menu_id);
 CREATE INDEX IF NOT EXISTS idx_grocery_menu ON grocery_items(menu_id);
 CREATE INDEX IF NOT EXISTS idx_recipes_household ON recipes(household_id);

@@ -52,7 +52,7 @@ export async function loadStarter(): Promise<number> {
     await api.createRecipe({
       name: r.name, description: r.description, mealType: r.mealType, tags: r.tags, prepMinutes: r.prep, cookMinutes: r.cook,
       servings: 4, instructions: "",
-      ingredients: r.ings.map(([k, q]) => ({ ingredientId: ids[k], quantity: q, note: "" })),
+      ingredients: r.ings.map(([k, q]) => ({ ingredientId: ids[k], quantity: q, unit: ING[k].u, note: "" })),
     })
     n++
   }

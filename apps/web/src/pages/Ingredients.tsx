@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState, type FormEvent } from "react"
 import { Icon } from "../components/Icon"
-import { Empty, Spinner, useToast } from "../components/ui"
+import { Empty, Spinner, UnitSelect, useToast } from "../components/ui"
 import { api, ApiError, type Ingredient } from "../lib/api"
 import { useIngredients } from "../lib/hooks"
 import { CATEGORIES } from "../lib/util"
@@ -29,7 +29,7 @@ export default function Ingredients() {
       {toast.node}
       <form className="sheet row wrap" style={{ marginBottom: "1.4rem", alignItems: "flex-end" }} onSubmit={submit}>
         <div className="field grow" style={{ minWidth: 160 }}><label htmlFor="in">New ingredient</label><input id="in" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Red onion" required /></div>
-        <div className="field"><label htmlFor="iu">Unit</label><input id="iu" className="input" style={{ width: 90 }} value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="lb, pc…" /></div>
+        <div className="field"><label htmlFor="iu">Unit</label><UnitSelect id="iu" value={unit} onChange={setUnit} style={{ width: 110 }} /></div>
         <div className="field"><label htmlFor="ic">Aisle</label><select id="ic" className="input" value={category} onChange={(e) => setCategory(e.target.value)}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></div>
         <div className="field"><label htmlFor="ip">$ / unit</label><input id="ip" className="input" style={{ width: 90 }} inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="optional" /></div>
         <button className="btn forest" disabled={create.isPending}><Icon name="plus" size={16} />Add</button>
@@ -60,7 +60,7 @@ function Row({ ing, onDone, onFail }: { ing: Ingredient; onDone: () => void; onF
   return (
     <tr>
       <td><input className="input" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} aria-label="Name" /></td>
-      <td><input className="input" style={{ width: 80 }} value={v.unit} onChange={(e) => setV({ ...v, unit: e.target.value })} aria-label="Unit" /></td>
+      <td><UnitSelect value={v.unit} onChange={(u) => setV({ ...v, unit: u })} style={{ width: 110 }} /></td>
       <td><select className="input" value={v.category} onChange={(e) => setV({ ...v, category: e.target.value })} aria-label="Aisle">{[...new Set([...CATEGORIES, ing.category])].map((c) => <option key={c}>{c}</option>)}</select></td>
       <td><input className="input" style={{ width: 80 }} inputMode="decimal" value={v.cost} onChange={(e) => setV({ ...v, cost: e.target.value })} aria-label="Cost per unit" /></td>
       <td style={{ whiteSpace: "nowrap" }}>

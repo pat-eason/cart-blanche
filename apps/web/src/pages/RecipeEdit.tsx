@@ -2,12 +2,23 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { Icon } from "../components/Icon"
-import { Spinner, TagInput, useConfirm, useToast } from "../components/ui"
+import { Spinner, TagInput, UnitSelect, useConfirm, useToast } from "../components/ui"
 import { api, ApiError, type Ingredient, type RecipeInput } from "../lib/api"
 import { useIngredients } from "../lib/hooks"
+import { useSettings } from "../lib/settings"
+import { parseQty } from "../lib/units"
 import { CATEGORIES, cap, MEAL_TYPES, money, qty } from "../lib/util"
 
-interface Line { ingredientId: string; quantity: string; note: string }
+/** How many of `to` one `from` is (1 when they aren't comparable). Mirrors the server's conversion for the cost estimate. */
+function unitRatio(from: string, to: string): number {
+  if (!from || !to || from === to) return 1
+  const vol: Record<string, number> = { tsp: 4.92892, tbsp: 14.7868, "fl oz": 29.5735, cup: 236.588, pint: 473.176, quart: 946.353, gallon: 3785.41, ml: 1, l: 1000 }
+  const wt: Record<string, number> = { oz: 28.3495, lb: 453.592, g: 1, kg: 1000 }
+  for (const t of [vol, wt]) if (t[from] && t[to]) return t[from] / t[to]
+  return 1
+}
+
+interface Line { ingredientId: string; quantity: string; unit: string; note: string }
 
 export default function RecipeEdit() {
   const { id } = useParams()
@@ -29,6 +40,7 @@ export default function RecipeEdit() {
   const toast = useToast()
   const confirm = useConfirm()
   const loaded = useRef(false)
+  useSettings() // re-render when the fractions preference changes
 
   useEffect(() => {
     const r = recipeQ.data
@@ -36,19 +48,19 @@ export default function RecipeEdit() {
     loaded.current = true
     setName(r.name); setDescription(r.description); setMealType(r.mealType); setTags(r.tags)
     setPrep(String(r.prepMinutes)); setCook(String(r.cookMinutes)); setServings(String(r.servings)); setInstructions(r.instructions)
-    setLines(r.ingredients.map((i) => ({ ingredientId: i.ingredientId, quantity: qty(i.quantity), note: i.note })))
+    setLines(r.ingredients.map((i) => ({ ingredientId: i.ingredientId, quantity: qty(i.quantity), unit: i.unit, note: i.note })))
   }, [recipeQ.data])
 
   const ings = ingsQ.data ?? []
   const byId = useMemo(() => new Map(ings.map((i) => [i.id, i])), [ings])
-  const cost = lines.reduce((a, l) => { const i = byId.get(l.ingredientId); return i?.unitCost != null ? a + i.unitCost * (parseFloat(l.quantity) || 0) : a }, 0)
+  const cost = lines.reduce((a, l) => { const i = byId.get(l.ingredientId); return i?.unitCost != null ? a + i.unitCost * (parseQty(l.quantity) || 0) * unitRatio(l.unit, i.unit) : a }, 0)
 
   const save = useMutation({
     mutationFn: () => {
       const body: RecipeInput = {
         name, description, mealType, tags, servings: parseInt(servings) || 2,
         prepMinutes: parseInt(prep) || 0, cookMinutes: parseInt(cook) || 0, instructions,
-        ingredients: lines.map((l) => ({ ingredientId: l.ingredientId, quantity: parseFloat(l.quantity) || 1, note: l.note })),
+        ingredients: lines.map((l) => ({ ingredientId: l.ingredientId, quantity: parseQty(l.quantity) || 1, unit: l.unit, note: l.note })),
       }
       return editing ? api.updateRecipe(id!, body) : api.createRecipe(body)
     },
@@ -66,7 +78,12 @@ export default function RecipeEdit() {
   })
 
   if (editing && recipeQ.isLoading) return <Spinner />
-  const submit = (e: FormEvent) => { e.preventDefault(); save.mutate() }
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    const bad = lines.find((l) => isNaN(parseQty(l.quantity)))
+    if (bad) { toast.error(`"${bad.quantity}" isn't a valid quantity. Try 2, 0.5 or 1/3.`); return }
+    save.mutate()
+  }
 
   return (
     <form onSubmit={submit}>
@@ -105,7 +122,7 @@ export default function RecipeEdit() {
 
         <div className="sheet kraft">
           <div className="row spread"><h2 style={{ color: "var(--forest-deep)" }}>Ingredients</h2><span className="chip on">{money(cost || null)} est.</span></div>
-          <p className="small" style={{ margin: "4px 0 10px", color: "var(--forest-deep)" }}>Pick from your catalog, or create a new one on the spot. Quantities are in each ingredient's unit.</p>
+          <p className="small" style={{ margin: "4px 0 10px", color: "var(--forest-deep)" }}>Pick from your catalog, or create a new one on the spot. Fractions like 1/3 are fine, and each line can use its own unit.</p>
           <div className="stack tight" style={{ background: "var(--paper-hi)", borderRadius: 12, padding: "0.4rem 0.8rem 0.8rem" }}>
             {lines.length === 0 && <div className="muted small" style={{ padding: "0.8rem 0" }}>No ingredients yet.</div>}
             {lines.map((l, idx) => {
@@ -114,13 +131,13 @@ export default function RecipeEdit() {
                 <div key={idx} className="ing-row">
                   <div><b>{ing?.name ?? "?"}</b><div className="small muted">{ing?.category}{ing?.unitCost != null ? ` · ${money(ing.unitCost)}/${ing.unit || "ea"}` : ""}</div></div>
                   <input className="input" inputMode="decimal" aria-label={`Quantity of ${ing?.name}`} value={l.quantity} onChange={(e) => setLines(lines.map((x, i) => i === idx ? { ...x, quantity: e.target.value } : x))} style={{ textAlign: "right" }} />
-                  <span className="small muted">{ing?.unit || "ea"}</span>
+                  <UnitSelect label={`Unit for ${ing?.name}`} value={l.unit} onChange={(u) => setLines(lines.map((x, i) => i === idx ? { ...x, unit: u } : x))} />
                   <button type="button" className="btn ghost icon small" aria-label={`Remove ${ing?.name}`} onClick={() => setLines(lines.filter((_, i) => i !== idx))}><Icon name="x" size={15} /></button>
                 </div>
               )
             })}
             <IngredientPicker ingredients={ings} used={new Set(lines.map((l) => l.ingredientId))}
-              onPick={(i) => setLines([...lines, { ingredientId: i.id, quantity: "1", note: "" }])} />
+              onPick={(i) => setLines([...lines, { ingredientId: i.id, quantity: "1", unit: i.unit, note: "" }])} />
           </div>
         </div>
       </div>
@@ -168,7 +185,7 @@ export function IngredientPicker({ ingredients, used, onPick }: { ingredients: I
       </div>
       {creating && (
         <div className="row wrap" style={{ marginTop: 8, alignItems: "flex-end" }}>
-          <div className="field"><label>Unit</label><input className="input" style={{ width: 90 }} placeholder="lb, cup, pc" value={unit} onChange={(e) => setUnit(e.target.value)} /></div>
+          <div className="field"><label>Unit</label><UnitSelect value={unit} onChange={setUnit} style={{ width: 110 }} /></div>
           <div className="field"><label>Aisle</label><select className="input" style={{ width: 150 }} value={category} onChange={(e) => setCategory(e.target.value)}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></div>
           <div className="field"><label>$ / unit</label><input className="input" style={{ width: 80 }} inputMode="decimal" placeholder="opt." value={cost} onChange={(e) => setCost(e.target.value)} /></div>
           <button type="button" className="btn small forest" onClick={() => create.mutate()} disabled={create.isPending}>Create &amp; add</button>

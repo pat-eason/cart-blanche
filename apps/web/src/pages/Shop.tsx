@@ -7,6 +7,8 @@ import { Icon } from "../components/Icon"
 import { Empty, Spinner } from "../components/ui"
 import { api, type Grocery, type GroceryItem, type Menu } from "../lib/api"
 import { useGrocery, useMenuCache, useMenuWeek, useWeekParam } from "../lib/hooks"
+import { useSettings } from "../lib/settings"
+import { parseQty } from "../lib/units"
 import { addWeeks, CATEGORIES, money, qty, weekLabel, weekStartOf } from "../lib/util"
 
 export default function Shop() {
@@ -137,9 +139,10 @@ export default function Shop() {
 }
 
 function Row({ item, onToggle, onChange }: { item: GroceryItem; onToggle: () => void; onChange: (g: Grocery) => void }) {
+  useSettings()
   const [open, setOpen] = useState(false)
   const [cost, setCost] = useState(item.unitCost == null ? "" : String(item.unitCost))
-  const [q, setQ] = useState(String(item.quantity))
+  const [q, setQ] = useState(qty(item.quantity))
   const upd = useMutation({ mutationFn: (b: Parameters<typeof api.updateItem>[1]) => api.updateItem(item.id, b), onSuccess: onChange })
   const del = useMutation({ mutationFn: () => api.deleteItem(item.id), onSuccess: onChange })
   const line = item.unitCost != null ? item.unitCost * item.quantity : null
@@ -171,7 +174,7 @@ function Row({ item, onToggle, onChange }: { item: GroceryItem; onToggle: () => 
       </div>
       {open && (
         <div className="pad-edit" onClick={(e) => e.stopPropagation()}>
-          <div className="field"><label>Qty</label><input className="input num" inputMode="decimal" value={q} onChange={(e) => setQ(e.target.value)} onBlur={() => { const v = parseFloat(q); if (v > 0 && v !== item.quantity) upd.mutate({ quantity: v }) }} /></div>
+          <div className="field"><label>Qty</label><input className="input num" inputMode="decimal" value={q} onChange={(e) => setQ(e.target.value)} onBlur={() => { const v = parseQty(q); if (v > 0 && v !== item.quantity) upd.mutate({ quantity: v }) }} /></div>
           <div className="field"><label>Cost each</label><input className="input num" inputMode="decimal" placeholder="—" value={cost} onChange={(e) => setCost(e.target.value)}
             onBlur={() => { if (cost.trim() === "") { if (item.unitCost != null) upd.mutate({ clearCost: true }) } else { const v = parseFloat(cost); if (!isNaN(v) && v >= 0 && v !== item.unitCost) upd.mutate({ unitCost: v }) } }} /></div>
           <button className="btn small danger" onClick={() => del.mutate()}><Icon name="trash" size={14} />Remove</button>
@@ -187,7 +190,7 @@ function AddItem({ menu, onAdded }: { menu: Menu; onAdded: (g: Grocery) => void 
   const [q, setQ] = useState("1")
   const [cost, setCost] = useState("")
   const add = useMutation({
-    mutationFn: () => api.addItem(menu.id, { name, category, quantity: parseFloat(q) || 1, unitCost: cost.trim() === "" ? null : parseFloat(cost) }),
+    mutationFn: () => api.addItem(menu.id, { name, category, quantity: parseQty(q) || 1, unitCost: cost.trim() === "" ? null : parseFloat(cost) }),
     onSuccess: (g) => { onAdded(g); setName(""); setQ("1"); setCost("") },
   })
   const submit = (e: FormEvent) => { e.preventDefault(); if (name.trim()) add.mutate() }

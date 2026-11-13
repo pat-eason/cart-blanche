@@ -60,7 +60,7 @@ func (s *server) loadMenu(hid, id string) (*Menu, error) {
 
 func (s *server) fillMenu(m *Menu, hid string) error {
 	rows, err := s.db.Query(`SELECT mm.id,mm.recipe_id,r.name,r.meal_type,r.tags,mm.day,mm.slot,mm.status,r.prep_minutes+r.cook_minutes,
-		(SELECT SUM(i.unit_cost*ri.quantity) FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.recipe_id=r.id AND i.unit_cost IS NOT NULL)
+		(SELECT SUM(i.unit_cost*(`+qtyInIngredientUnit()+`)) FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.recipe_id=r.id AND i.unit_cost IS NOT NULL)
 		FROM menu_meals mm JOIN recipes r ON r.id=mm.recipe_id WHERE mm.menu_id=?
 		ORDER BY COALESCE(mm.day,99), mm.id`, m.ID)
 	if err != nil {
