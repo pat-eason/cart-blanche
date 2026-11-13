@@ -3,9 +3,9 @@ import { AnimatePresence, motion } from "framer-motion"
 import { useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { Icon } from "../components/Icon"
-import { Empty, Spinner, Tags } from "../components/ui"
-import { api, type Meal, type Menu, type Recipe, type Suggestion } from "../lib/api"
-import { useMenuCache, useMenuWeek, useRecipes, useWeekParam } from "../lib/hooks"
+import { Empty, Modal, Spinner, Tags } from "../components/ui"
+import { api, type GenerateOptions, type Meal, type Menu, type Recipe, type Suggestion } from "../lib/api"
+import { useIngredients, useMenuCache, useMenuWeek, useRecipes, useWeekParam } from "../lib/hooks"
 import { addWeeks, DAYS, MEAL_TYPES, minutesLabel, money, cap, weekLabel, weekStartOf } from "../lib/util"
 
 export default function Plan() {
@@ -54,7 +54,7 @@ export default function Plan() {
         </div>
       ) : (
         <div className="split">
-          <MenuSheet menu={menu} week={week} onBuild={() => build.mutate(menu)} building={build.isPending} />
+          <MenuSheet menu={menu} recipes={recipesQ.data ?? []} week={week} onBuild={() => build.mutate(menu)} building={build.isPending} />
           <Finder menu={menu} recipes={recipesQ.data ?? []} />
         </div>
       )}
@@ -62,10 +62,11 @@ export default function Plan() {
   )
 }
 
-function MenuSheet({ menu, week, onBuild, building }: { menu: Menu; week: string; onBuild: () => void; building: boolean }) {
+function MenuSheet({ menu, recipes, week, onBuild, building }: { menu: Menu; recipes: Recipe[]; week: string; onBuild: () => void; building: boolean }) {
   const setMenu = useMenuCache()
   const upd = useMutation({ mutationFn: (b: Parameters<typeof api.updateMenu>[1]) => api.updateMenu(menu.id, b), onSuccess: setMenu })
   const [budget, setBudget] = useState<string | null>(null)
+  const [genOpen, setGenOpen] = useState(false)
   const pct = menu.budget ? Math.min(100, (menu.estCost / menu.budget) * 100) : 0
   const over = menu.budget != null && menu.estCost > menu.budget
 
@@ -78,7 +79,10 @@ function MenuSheet({ menu, week, onBuild, building }: { menu: Menu; week: string
             <h2>{menu.meals.length ? `${menu.meals.length} meals on the menu` : "Menu is empty"}</h2>
             <span className="muted small">Week of {weekLabel(week)}</span>
           </div>
-          <span className={`chip ${menu.status === "draft" ? "kraft" : menu.status === "shopping" ? "accent" : "on"}`}>{cap(menu.status)}</span>
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn small forest" onClick={() => setGenOpen(true)} disabled={recipes.length === 0}><Icon name="shuffle" size={15} />Auto-generate</button>
+            <span className={`chip ${menu.status === "draft" ? "kraft" : menu.status === "shopping" ? "accent" : "on"}`}>{cap(menu.status)}</span>
+          </div>
         </div>
 
         <div className="stack tight">
@@ -89,6 +93,7 @@ function MenuSheet({ menu, week, onBuild, building }: { menu: Menu; week: string
         </div>
       </div>
 
+      <GenerateModal open={genOpen} onClose={() => setGenOpen(false)} menu={menu} recipes={recipes} />
       <div className="sheet">
         <div className="row spread wrap">
           <div className="stat"><b>{money(menu.estCost)}</b><span>estimated · meals {money(menu.mealsCost)}{menu.extrasCost > 0 && ` + extras ${money(menu.extrasCost)}`}</span></div>
@@ -268,5 +273,116 @@ function Finder({ menu, recipes }: { menu: Menu; recipes: Recipe[] }) {
         </div>
       )}
     </div>
+  )
+}
+
+const GEN_TIMES = ["breakfast", "lunch", "dinner"]
+
+function GenerateModal({ open, onClose, menu, recipes }: { open: boolean; onClose: () => void; menu: Menu; recipes: Recipe[] }) {
+  const setMenu = useMenuCache()
+  const ingsQ = useIngredients()
+  const [times, setTimes] = useState<string[]>(["dinner"])
+  const [count, setCount] = useState(5)
+  const [maxMin, setMaxMin] = useState(0)
+  const [weeks, setWeeks] = useState(0)
+  const [mealCost, setMealCost] = useState("")
+  const [totalCost, setTotalCost] = useState("")
+  const [tagState, setTagState] = useState<Record<string, TagState>>({})
+  const [want, setWant] = useState<string[]>([])
+  const [skip, setSkip] = useState<string[]>([])
+  const [replaceChoice, setReplace] = useState(false)
+  const replace = menu.meals.length === 0 || replaceChoice
+  const allTags = useMemo(() => [...new Set(recipes.flatMap((r) => r.tags))].sort(), [recipes])
+  const ings = ingsQ.data ?? []
+  const name = (id: string) => ings.find((i) => i.id === id)?.name ?? "?"
+  const num = (s: string) => { const v = parseFloat(s); return !isNaN(v) && v > 0 ? v : undefined }
+
+  const gen = useMutation({
+    mutationFn: () => {
+      const o: GenerateOptions = {
+        count, mealTypes: times, replace,
+        include: Object.keys(tagState).filter((t) => tagState[t] === "include"),
+        exclude: Object.keys(tagState).filter((t) => tagState[t] === "exclude"),
+        maxMinutes: maxMin || undefined, minWeeksSince: weeks || undefined,
+        maxMealCost: num(mealCost), maxTotalCost: num(totalCost),
+        includeIngredients: want, excludeIngredients: skip,
+      }
+      return api.generateMenu(menu.id, o)
+    },
+    onSuccess: (m) => { setMenu(m); onClose() },
+  })
+  const toggleTime = (t: string) => setTimes((s) => s.includes(t) ? s.filter((x) => x !== t) : [...s, t])
+  const cycle = (t: string) => setTagState((s) => {
+    const n = { ...s }
+    if (!s[t]) n[t] = "include"; else if (s[t] === "include") n[t] = "exclude"; else delete n[t]
+    return n
+  })
+  const sel = { width: "auto", minHeight: 34, padding: "0.2rem 0.6rem" } as const
+  const ingPicker = (label: string, ids: string[], set: (v: string[]) => void) => (
+    <div className="field">
+      <label>{label}</label>
+      <div className="row wrap" style={{ gap: 5 }}>
+        {ids.map((id) => <button key={id} className="chip on" onClick={() => set(ids.filter((x) => x !== id))}>{name(id)} <Icon name="x" size={12} /></button>)}
+        <select className="input" style={sel} value="" aria-label={label} onChange={(e) => e.target.value && set([...ids, e.target.value])}>
+          <option value="">Add ingredient…</option>
+          {ings.filter((i) => !ids.includes(i.id)).map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+        </select>
+      </div>
+    </div>
+  )
+
+  return (
+    <Modal open={open} onClose={onClose} title="Auto-generate a menu">
+      <div className="stack tight">
+        <div className="field">
+          <label>Meal times</label>
+          <div className="row wrap" style={{ gap: 6 }}>
+            {GEN_TIMES.map((t) => <button key={t} className={`chip ${times.includes(t) ? "on" : "off"}`} aria-pressed={times.includes(t)} onClick={() => toggleTime(t)}>{cap(t)}</button>)}
+          </div>
+        </div>
+        <div className="row wrap" style={{ gap: 6 }}>
+          <select className="input" style={sel} value={count} onChange={(e) => setCount(+e.target.value)} aria-label="Meals per meal time">
+            {[1, 2, 3, 4, 5, 6, 7].map((n) => <option key={n} value={n}>{n} {times.length > 1 ? "of each" : n === 1 ? "meal" : "meals"}</option>)}
+          </select>
+          <select className="input" style={sel} value={maxMin} onChange={(e) => setMaxMin(+e.target.value)} aria-label="Max time to cook">
+            <option value={0}>Any cook time</option><option value={20}>≤ 20 min</option><option value={30}>≤ 30 min</option><option value={45}>≤ 45 min</option><option value={60}>≤ 1 hour</option>
+          </select>
+          <select className="input" style={sel} value={weeks} onChange={(e) => setWeeks(+e.target.value)} aria-label="Recent frequency">
+            <option value={0}>Repeats OK</option><option value={2}>Not in last 2 weeks</option><option value={4}>Not in last 4 weeks</option><option value={8}>Not in last 8 weeks</option>
+          </select>
+        </div>
+        <div className="row wrap" style={{ gap: 10 }}>
+          <div className="field" style={{ width: 150 }}><label htmlFor="gmc">Max per meal</label>
+            <input id="gmc" className="input" inputMode="decimal" placeholder="$ any" value={mealCost} onChange={(e) => setMealCost(e.target.value)} /></div>
+          <div className="field" style={{ width: 150 }}><label htmlFor="gtc">Max total</label>
+            <input id="gtc" className="input" inputMode="decimal" placeholder={menu.budget ? `$${menu.budget} budget` : "$ any"} value={totalCost} onChange={(e) => setTotalCost(e.target.value)} /></div>
+        </div>
+        {allTags.length > 0 && (
+          <div className="field">
+            <label>Tags — tap to want · again to avoid</label>
+            <div className="row wrap" style={{ gap: 5 }}>
+              {allTags.map((t) => (
+                <button key={t} className={`chip ${tagState[t] === "include" ? "on" : tagState[t] === "exclude" ? "no" : "off"}`} onClick={() => cycle(t)}>
+                  {tagState[t] === "exclude" && <Icon name="ban" size={12} />}{t}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {ingPicker("Use up these ingredients (any)", want, setWant)}
+        {ingPicker("Avoid these ingredients", skip, setSkip)}
+        {menu.meals.length > 0 && (
+          <label className="row small" style={{ gap: 8 }}>
+            <input type="checkbox" checked={replaceChoice} onChange={(e) => setReplace(e.target.checked)} />
+            Replace the {menu.meals.length} meals already on this menu (otherwise fill in around them)
+          </label>
+        )}
+        {gen.error && <div className="small" role="alert" style={{ color: "#b3382c" }}>{(gen.error as Error).message}</div>}
+        <div className="row" style={{ justifyContent: "flex-end" }}>
+          <button className="btn ghost" onClick={onClose}>Cancel</button>
+          <button className="btn primary" onClick={() => gen.mutate()} disabled={gen.isPending || times.length === 0}><Icon name="shuffle" size={16} />Generate</button>
+        </div>
+      </div>
+    </Modal>
   )
 }

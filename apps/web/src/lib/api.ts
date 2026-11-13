@@ -33,6 +33,11 @@ export interface GroceryItem {
 export interface Grocery {
   items: GroceryItem[]; total: number; remaining: number; checked: number; count: number; menuStatus: string
 }
+export interface GenerateOptions {
+  count: number; mealTypes: string[]; include?: string[]; exclude?: string[]; maxMinutes?: number
+  minWeeksSince?: number; maxMealCost?: number; maxTotalCost?: number
+  includeIngredients?: string[]; excludeIngredients?: string[]; replace: boolean
+}
 export interface Suggestion { recipe: Recipe; score: number; reasons: string[] }
 export interface CountItem { id?: string; name: string; count: number; cost: number }
 export interface WeekStat {
@@ -103,6 +108,7 @@ export const api = {
   deleteMenu: (id: string) => del<void>(`/menus/${id}`),
   addMeal: (menuId: string, recipeId: string, day?: number | null) =>
     post<Menu>(`/menus/${menuId}/meals`, { recipeId, day: day ?? null }),
+  generateMenu: (menuId: string, o: GenerateOptions) => post<Menu>(`/menus/${menuId}/generate`, o),
   updateMeal: (id: string, b: { day?: number; clearDay?: boolean; status?: MealStatus }) => patch<Menu>(`/meals/${id}`, b),
   deleteMeal: (id: string) => del<Menu>(`/meals/${id}`),
 

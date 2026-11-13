@@ -37,6 +37,35 @@ func hasAny(have []string, want []string) bool {
 	return false
 }
 
+// scoreRecipe rates a recipe by household habits and explains why.
+func scoreRecipe(rc *Recipe, lastStatus string, now time.Time) (float64, []string) {
+	reasons := []string{}
+	score := 1.0
+	if rc.TimesCooked > 0 {
+		score += 0.6 * math.Log(1+float64(rc.TimesCooked))
+		reasons = append(reasons, "A household favorite — cooked "+strconv.Itoa(rc.TimesCooked)+"×")
+	}
+	if rc.LastPlanned == nil {
+		score += 1.2
+		reasons = append(reasons, "Never planned yet — something fresh")
+	} else if t, err := time.Parse("2006-01-02", *rc.LastPlanned); err == nil {
+		weeks := now.Sub(t).Hours() / 24 / 7
+		switch {
+		case weeks < 2:
+			score -= 2
+			reasons = append(reasons, "Planned very recently")
+		case weeks >= 4:
+			score += math.Min(weeks, 10) * 0.2
+			reasons = append(reasons, "Not on the menu in "+strconv.Itoa(int(weeks))+" weeks")
+		}
+	}
+	if lastStatus == "skipped" {
+		score += 1.5
+		reasons = append(reasons, "Planned but skipped last time")
+	}
+	return score, reasons
+}
+
 // recommendations ranks recipes by household habits:
 //   - things you love (often cooked) rise
 //   - things you haven't had in a while / ever rise, things from the last two weeks sink
@@ -114,30 +143,8 @@ func (s *server) recommendations(w http.ResponseWriter, r *http.Request, u *User
 			continue
 		}
 
-		sg := &Suggestion{Recipe: rc, Reasons: []string{}}
-		score := 1.0
-		if rc.TimesCooked > 0 {
-			score += 0.6 * math.Log(1+float64(rc.TimesCooked))
-			sg.Reasons = append(sg.Reasons, "A household favorite — cooked "+strconv.Itoa(rc.TimesCooked)+"×")
-		}
-		if rc.LastPlanned == nil {
-			score += 1.2
-			sg.Reasons = append(sg.Reasons, "Never planned yet — something fresh")
-		} else if t, err := time.Parse("2006-01-02", *rc.LastPlanned); err == nil {
-			weeks := now.Sub(t).Hours() / 24 / 7
-			switch {
-			case weeks < 2:
-				score -= 2
-				sg.Reasons = append(sg.Reasons, "Planned very recently")
-			case weeks >= 4:
-				score += math.Min(weeks, 10) * 0.2
-				sg.Reasons = append(sg.Reasons, "Not on the menu in "+strconv.Itoa(int(weeks))+" weeks")
-			}
-		}
-		if lastStatus[rc.ID] == "skipped" {
-			score += 1.5
-			sg.Reasons = append(sg.Reasons, "Planned but skipped last time")
-		}
+		score, reasons := scoreRecipe(rc, lastStatus[rc.ID], now)
+		sg := &Suggestion{Recipe: rc, Reasons: reasons}
 		sg.Score = score + rand.Float64()*0.8
 		cands = append(cands, sg)
 	}

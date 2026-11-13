@@ -130,7 +130,7 @@ export default function RecipeEdit() {
               return (
                 <div key={idx} className="ing-row">
                   <div><b>{ing?.name ?? "?"}</b><div className="small muted">{ing?.category}{ing?.unitCost != null ? ` · ${money(ing.unitCost)}/${ing.unit || "ea"}` : ""}</div></div>
-                  <input className="input" inputMode="decimal" aria-label={`Quantity of ${ing?.name}`} value={l.quantity} onChange={(e) => setLines(lines.map((x, i) => i === idx ? { ...x, quantity: e.target.value } : x))} style={{ textAlign: "right" }} />
+                  <input className="input" inputMode="decimal" placeholder="Amt" aria-label={`Quantity of ${ing?.name}`} value={l.quantity} onChange={(e) => setLines(lines.map((x, i) => i === idx ? { ...x, quantity: e.target.value } : x))} style={{ textAlign: "right" }} />
                   <UnitSelect label={`Unit for ${ing?.name}`} value={l.unit} onChange={(u) => setLines(lines.map((x, i) => i === idx ? { ...x, unit: u } : x))} />
                   <button type="button" className="btn ghost icon small" aria-label={`Remove ${ing?.name}`} onClick={() => setLines(lines.filter((_, i) => i !== idx))}><Icon name="x" size={15} /></button>
                 </div>

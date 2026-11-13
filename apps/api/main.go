@@ -216,6 +216,7 @@ func (s *server) routes(m *http.ServeMux) {
 	m.HandleFunc("PATCH /api/menus/{id}", s.authed(s.updateMenu))
 	m.HandleFunc("DELETE /api/menus/{id}", s.authed(s.deleteMenu))
 	m.HandleFunc("POST /api/menus/{id}/meals", s.authed(s.addMeal))
+	m.HandleFunc("POST /api/menus/{id}/generate", s.authed(s.generateMenu))
 	m.HandleFunc("PATCH /api/meals/{id}", s.authed(s.updateMeal))
 	m.HandleFunc("DELETE /api/meals/{id}", s.authed(s.deleteMeal))
 
