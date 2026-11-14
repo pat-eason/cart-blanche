@@ -9,6 +9,7 @@ import AuthPage from "./pages/Auth"
 import Dashboard from "./pages/Dashboard"
 import Plan from "./pages/Plan"
 import Shop from "./pages/Shop"
+import MenuPage from "./pages/Menu"
 import Recipes from "./pages/Recipes"
 import RecipeEdit from "./pages/RecipeEdit"
 import Ingredients from "./pages/Ingredients"
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/plan" element={<Plan />} />
             <Route path="/shop" element={<Shop />} />
+            <Route path="/menu" element={<MenuPage />} />
             <Route path="/recipes" element={<Recipes />} />
             <Route path="/recipes/new" element={<RecipeEdit />} />
             <Route path="/recipes/:id" element={<RecipeEdit />} />

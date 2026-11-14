@@ -125,6 +125,7 @@ function MenuSheet({ menu, recipes, week, onBuild, building }: { menu: Menu; rec
           <Icon name="cart" size={18} />{menu.itemCount > 0 ? "Update grocery list" : "Build grocery list"}
         </button>
         {menu.itemCount > 0 && <span className="muted small">{menu.checkedCount}/{menu.itemCount} items checked off</span>}
+        {menu.meals.length > 0 && <Link className="btn" to={`/menu${week === weekStartOf() ? "" : `?week=${week}`}`}><Icon name="check" size={16} />Cook view</Link>}
       </div>
     </div>
   )
@@ -204,14 +205,14 @@ function Finder({ menu, recipes }: { menu: Menu; recipes: Recipe[] }) {
       ) : tab === "suggest" ? (
         <div className="stack tight">
           <div className="row wrap" style={{ gap: 6 }}>
-            <select className="input" style={{ width: "auto", minHeight: 34, padding: "0.2rem 0.6rem" }} value={mealType} onChange={(e) => setMealType(e.target.value)} aria-label="Meal type">
+            <select className="input sel-sm" value={mealType} onChange={(e) => setMealType(e.target.value)} aria-label="Meal type">
               <option value="any">Any meal</option>
               {MEAL_TYPES.map((t) => <option key={t} value={t}>{cap(t)}</option>)}
             </select>
-            <select className="input" style={{ width: "auto", minHeight: 34, padding: "0.2rem 0.6rem" }} value={maxMin} onChange={(e) => setMaxMin(+e.target.value)} aria-label="Max time">
+            <select className="input sel-sm" value={maxMin} onChange={(e) => setMaxMin(+e.target.value)} aria-label="Max time">
               <option value={0}>Any time</option><option value={20}>≤ 20 min</option><option value={30}>≤ 30 min</option><option value={45}>≤ 45 min</option><option value={60}>≤ 1 hour</option>
             </select>
-            <select className="input" style={{ width: "auto", minHeight: 34, padding: "0.2rem 0.6rem" }} value={count} onChange={(e) => setCount(+e.target.value)} aria-label="How many">
+            <select className="input sel-sm" value={count} onChange={(e) => setCount(+e.target.value)} aria-label="How many">
               {[3, 4, 5, 6, 7].map((n) => <option key={n} value={n}>{n} meals</option>)}
             </select>
           </div>
@@ -319,13 +320,12 @@ function GenerateModal({ open, onClose, menu, recipes }: { open: boolean; onClos
     if (!s[t]) n[t] = "include"; else if (s[t] === "include") n[t] = "exclude"; else delete n[t]
     return n
   })
-  const sel = { width: "auto", minHeight: 34, padding: "0.2rem 0.6rem" } as const
-  const ingPicker = (label: string, ids: string[], set: (v: string[]) => void) => (
+    const ingPicker = (label: string, ids: string[], set: (v: string[]) => void) => (
     <div className="field">
       <label>{label}</label>
       <div className="row wrap" style={{ gap: 5 }}>
         {ids.map((id) => <button key={id} className="chip on" onClick={() => set(ids.filter((x) => x !== id))}>{name(id)} <Icon name="x" size={12} /></button>)}
-        <select className="input" style={sel} value="" aria-label={label} onChange={(e) => e.target.value && set([...ids, e.target.value])}>
+        <select className="input sel-sm" value="" aria-label={label} onChange={(e) => e.target.value && set([...ids, e.target.value])}>
           <option value="">Add ingredient…</option>
           {ings.filter((i) => !ids.includes(i.id)).map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
         </select>
@@ -343,13 +343,13 @@ function GenerateModal({ open, onClose, menu, recipes }: { open: boolean; onClos
           </div>
         </div>
         <div className="row wrap" style={{ gap: 6 }}>
-          <select className="input" style={sel} value={count} onChange={(e) => setCount(+e.target.value)} aria-label="Meals per meal time">
+          <select className="input sel-sm" value={count} onChange={(e) => setCount(+e.target.value)} aria-label="Meals per meal time">
             {[1, 2, 3, 4, 5, 6, 7].map((n) => <option key={n} value={n}>{n} {times.length > 1 ? "of each" : n === 1 ? "meal" : "meals"}</option>)}
           </select>
-          <select className="input" style={sel} value={maxMin} onChange={(e) => setMaxMin(+e.target.value)} aria-label="Max time to cook">
+          <select className="input sel-sm" value={maxMin} onChange={(e) => setMaxMin(+e.target.value)} aria-label="Max time to cook">
             <option value={0}>Any cook time</option><option value={20}>≤ 20 min</option><option value={30}>≤ 30 min</option><option value={45}>≤ 45 min</option><option value={60}>≤ 1 hour</option>
           </select>
-          <select className="input" style={sel} value={weeks} onChange={(e) => setWeeks(+e.target.value)} aria-label="Recent frequency">
+          <select className="input sel-sm" value={weeks} onChange={(e) => setWeeks(+e.target.value)} aria-label="Recent frequency">
             <option value={0}>Repeats OK</option><option value={2}>Not in last 2 weeks</option><option value={4}>Not in last 4 weeks</option><option value={8}>Not in last 8 weeks</option>
           </select>
         </div>

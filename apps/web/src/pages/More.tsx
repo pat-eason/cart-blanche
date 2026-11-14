@@ -5,6 +5,7 @@ import { useAuth } from "../lib/auth"
 export default function More() {
   const { user, logout } = useAuth()
   const items = [
+    { to: "/recipes", icon: "book", t: "Recipes", d: "Your recipe box" },
     { to: "/history", icon: "history", t: "History", d: "Past menus, skipped & shelved meals" },
     { to: "/trends", icon: "chart", t: "Trends", d: "Spending, favorites & grocery mix" },
     { to: "/ingredients", icon: "leaf", t: "Ingredients", d: "Your pantry catalog & prices" },

@@ -117,6 +117,7 @@ export default function Shop() {
                   <div className="total">{money(g?.total ?? 0)}</div>
                 </div>
                 <div className="row">
+                  {menu.meals.length > 0 && <Link className="btn small" to={`/menu${week === weekStartOf() ? "" : `?week=${week}`}`}><Icon name="check" size={14} />Menu</Link>}
                   {menu.meals.length > 0 && items.length > 0 && <button className="btn small" onClick={() => gen.mutate()} disabled={gen.isPending} title="Re-sync with the menu (keeps your checkmarks and extras)"><Icon name="undo" size={14} />Sync menu</button>}
                 </div>
               </div>
@@ -129,6 +130,7 @@ export default function Shop() {
                 <Bag mood="full" size={70} className="wobble" />
                 <div className="grow"><h3>Everything's in the cart!</h3><div className="muted small">Nice work. Mark this trip complete to move it into your history.</div></div>
                 {menu.status !== "complete" ? <button className="btn primary" onClick={() => finish.mutate()}>Complete</button> : <span className="chip on">Completed</span>}
+                <Link className="btn" to={`/menu${week === weekStartOf() ? "" : `?week=${week}`}`}>Open menu</Link>
               </motion.div>
             )}
           </AnimatePresence>

@@ -54,7 +54,7 @@ export default function Dashboard() {
                 {menu.meals.length > 6 && <span className="chip" style={{ background: "rgba(238,229,212,.16)", color: "var(--paper)" }}>+{menu.meals.length - 6}</span>}
               </div>
               {menu.budget != null && <div className="small muted" style={{ marginBottom: 12 }}>{menu.estCost > menu.budget ? `${money(menu.estCost - menu.budget)} over` : `${money(menu.budget - menu.estCost)} under`} your {money(menu.budget)} budget</div>}
-              <div className="row wrap"><Link to={`/plan?week=${week}`} className="btn primary">Edit menu</Link><Link to="/shop" className="btn">Open list</Link><Link to="/plan" className="btn ghost">Plan next week</Link></div>
+              <div className="row wrap"><Link to={`/plan?week=${week}`} className="btn primary">Edit menu</Link><Link to="/menu" className="btn">Check off meals</Link><Link to="/shop" className="btn">Open list</Link><Link to="/plan" className="btn ghost">Plan next week</Link></div>
             </>
           ) : (
             <>

@@ -29,7 +29,7 @@ export default function SettingsPage() {
         </label>
         <label className="stack" style={{ gap: 4 }}>
           <b>Shopping day</b>
-          <select value={s.shoppingDay} disabled={save.isPending || !cfg.data} onChange={(e) => save.mutate(+e.target.value)} style={{ maxWidth: 200 }}>
+          <select className="input" value={s.shoppingDay} disabled={save.isPending || !cfg.data} onChange={(e) => save.mutate(+e.target.value)} style={{ maxWidth: 200 }}>
             {WEEKDAYS_LONG.map((d, i) => <option key={d} value={i}>{d}</option>)}
           </select>
           <div className="muted small">

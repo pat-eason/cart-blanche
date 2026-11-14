@@ -10,6 +10,7 @@ const P: Record<string, string> = {
   logout: "M15 4h4a1 1 0 011 1v14a1 1 0 01-1 1h-4M10 8l-4 4 4 4M6 12h10",
   plus: "M12 5v14M5 12h14",
   x: "M6 6l12 12M18 6L6 18",
+  utensils: "M6 3v6a2 2 0 004 0V3M8 3v18M17 21V3c-2.2 1.2-3.5 3.8-3.5 7.5H17",
   check: "M5 12.5l4.5 4.5L19 7.5",
   shuffle: "M16 4h4v4M4 20L20 4M20 16v4h-4M15 15l5 5M4 4l5 5",
   trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6",
