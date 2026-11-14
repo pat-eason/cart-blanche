@@ -8,7 +8,7 @@ export default function More() {
     { to: "/history", icon: "history", t: "History", d: "Past menus, skipped & shelved meals" },
     { to: "/trends", icon: "chart", t: "Trends", d: "Spending, favorites & grocery mix" },
     { to: "/ingredients", icon: "leaf", t: "Ingredients", d: "Your pantry catalog & prices" },
-    { to: "/settings", icon: "gear", t: "Settings", d: "Display preferences, like fractions" },
+    { to: "/settings", icon: "gear", t: "Settings", d: "Shopping day & display preferences" },
     { to: "/household", icon: "users", t: "Household", d: "Members & invite code" },
   ]
   return (

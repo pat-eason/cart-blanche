@@ -16,6 +16,7 @@ const NAV = [
   { to: "/history", label: "History", icon: "history" },
   { to: "/trends", label: "Trends", icon: "chart" },
   { to: "/household", label: "Household", icon: "users" },
+  { to: "/settings", label: "Settings", icon: "gear" },
 ]
 const TABS = [
   { to: "/", label: "Home", icon: "home", end: true },
@@ -51,7 +52,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <nav className="tabbar" aria-label="Main">
         {TABS.map((n) => (
           <NavLink key={n.to} to={n.to} end={n.end}
-            className={({ isActive }) => (isActive || (n.to === "/more" && ["/history", "/trends", "/ingredients", "/household"].some((p) => pathname.startsWith(p))) ? "active" : "")}>
+            className={({ isActive }) => (isActive || (n.to === "/more" && ["/history", "/trends", "/ingredients", "/household", "/settings"].some((p) => pathname.startsWith(p))) ? "active" : "")}>
             {({ isActive }) => (
               <>
                 {isActive && <motion.i layoutId="tabpill" className="pill" transition={{ type: "spring", stiffness: 400, damping: 32 }} />}
