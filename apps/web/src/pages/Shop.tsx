@@ -9,7 +9,7 @@ import { api, type Grocery, type GroceryItem, type Menu } from "../lib/api"
 import { useGrocery, useMenuCache, useMenuWeek, useWeekParam } from "../lib/hooks"
 import { useSettings } from "../lib/settings"
 import { parseQty } from "../lib/units"
-import { addWeeks, CATEGORIES, money, qty, weekLabel, weekStartOf } from "../lib/util"
+import { addWeeks, CATEGORIES, money, planWeek, qty, weekLabel, weekStartOf } from "../lib/util"
 
 export default function Shop() {
   const [week, setWeek] = useWeekParam()
@@ -71,7 +71,7 @@ export default function Shop() {
         <div className="sheet stacked" style={{ maxWidth: 520, margin: "2rem auto" }}>
           <span className="tape" />
           <Empty title="No menu for this week yet" mood="calm">Plan a few meals first — your list is built from the menu.</Empty>
-          <div className="row" style={{ justifyContent: "center" }}><Link className="btn primary" to={`/plan${week === weekStartOf() ? "" : `?week=${week}`}`}>Plan the menu</Link></div>
+          <div className="row" style={{ justifyContent: "center" }}><Link className="btn primary" to={`/plan${week === planWeek() ? "" : `?week=${week}`}`}>Plan the menu</Link></div>
         </div>
       ) : (
         <div className="pad-wrap">

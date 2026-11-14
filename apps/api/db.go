@@ -98,6 +98,15 @@ CREATE TABLE IF NOT EXISTS grocery_items (
   source TEXT NOT NULL DEFAULT 'menu',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS household_config (
+  household_id UUID NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  PRIMARY KEY (household_id, key)
+);
 ALTER TABLE recipe_ingredients ADD COLUMN IF NOT EXISTS unit TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_menu_meals_menu ON menu_meals(menu_id);
 CREATE INDEX IF NOT EXISTS idx_grocery_menu ON grocery_items(menu_id);

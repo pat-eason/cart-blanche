@@ -6,10 +6,10 @@ import { Icon } from "../components/Icon"
 import { Empty, Modal, Spinner, Tags } from "../components/ui"
 import { api, type GenerateOptions, type Meal, type Menu, type Recipe, type Suggestion } from "../lib/api"
 import { useIngredients, useMenuCache, useMenuWeek, useRecipes, useWeekParam } from "../lib/hooks"
-import { addWeeks, DAYS, MEAL_TYPES, minutesLabel, money, cap, weekLabel, weekStartOf } from "../lib/util"
+import { addWeeks, dayNames, MEAL_TYPES, minutesLabel, money, cap, planWeek, weekLabel, weekStartOf } from "../lib/util"
 
 export default function Plan() {
-  const [week, setWeek] = useWeekParam()
+  const [week, setWeek] = useWeekParam(planWeek())
   const menuQ = useMenuWeek(week)
   const recipesQ = useRecipes()
   const qc = useQueryClient()
@@ -26,19 +26,20 @@ export default function Plan() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["menu"] }); nav(`/shop${week === weekStartOf() ? "" : `?week=${week}`}`) },
   })
 
-  const isThis = week === weekStartOf()
+  const isDefault = week === planWeek()
+  const rel = week === weekStartOf() ? "This week" : week === planWeek() ? "Next week" : null
   return (
     <div>
       <div className="page-head">
         <div>
           <div className="eyebrow">Step 1 · Plan</div>
-          <h1>Plan the week</h1>
+          <h1>Plan {rel ? rel.toLowerCase() : "the week"}</h1>
         </div>
         <div className="week-switch">
           <button className="btn small icon" onClick={() => setWeek(addWeeks(week, -1))} aria-label="Previous week"><Icon name="left" size={16} /></button>
           <span className="label-w">{weekLabel(week)}</span>
           <button className="btn small icon" onClick={() => setWeek(addWeeks(week, 1))} aria-label="Next week"><Icon name="right" size={16} /></button>
-          {!isThis && <button className="btn small ghost" onClick={() => setWeek(weekStartOf())}>This week</button>}
+          {!isDefault && <button className="btn small ghost" onClick={() => setWeek(planWeek())}>Next week</button>}
         </div>
       </div>
 
@@ -87,7 +88,7 @@ function MenuSheet({ menu, recipes, week, onBuild, building }: { menu: Menu; rec
 
         <div className="stack tight">
           <AnimatePresence initial={false}>
-            {menu.meals.map((m) => <MealRow key={m.id} meal={m} />)}
+            {menu.meals.map((m) => <MealRow key={m.id} meal={m} week={week} />)}
           </AnimatePresence>
           {menu.meals.length === 0 && <div className="slot-empty">Add meals from suggestions or your recipe box →</div>}
         </div>
@@ -129,20 +130,21 @@ function MenuSheet({ menu, recipes, week, onBuild, building }: { menu: Menu; rec
   )
 }
 
-function MealRow({ meal }: { meal: Meal }) {
+function MealRow({ meal, week }: { meal: Meal; week: string }) {
+  const days = dayNames(week)
   const setMenu = useMenuCache()
   const upd = useMutation({ mutationFn: (b: Parameters<typeof api.updateMeal>[1]) => api.updateMeal(meal.id, b), onSuccess: setMenu })
   const del = useMutation({ mutationFn: () => api.deleteMeal(meal.id), onSuccess: setMenu })
   return (
     <motion.div layout initial={{ opacity: 0, scale: 0.92, y: -10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, x: 40 }}
       transition={{ type: "spring", stiffness: 380, damping: 30 }} className="meal">
-      <div className={`dot ${meal.day == null ? "" : "accent"}`}>{meal.day == null ? "·" : DAYS[meal.day][0]}</div>
+      <div className={`dot ${meal.day == null ? "" : "accent"}`}>{meal.day == null ? "·" : days[meal.day][0]}</div>
       <div style={{ minWidth: 0 }}>
         <div className="title">{meal.name}</div>
         <div className="row wrap small muted" style={{ gap: 8 }}>
           <select className="daysel" aria-label="Day" value={meal.day ?? ""} onChange={(e) => e.target.value === "" ? upd.mutate({ clearDay: true }) : upd.mutate({ day: +e.target.value })}>
             <option value="">Any day</option>
-            {DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}
+            {days.map((d, i) => <option key={i} value={i}>{d}</option>)}
           </select>
           {meal.minutes > 0 && <span><Icon name="clock" size={13} /> {minutesLabel(meal.minutes)}</span>}
           {meal.estCost != null && <span>{money(meal.estCost)}</span>}

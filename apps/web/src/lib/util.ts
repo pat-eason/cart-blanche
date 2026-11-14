@@ -1,8 +1,9 @@
 import { getSettings } from "./settings"
 import { toFraction } from "./units"
 
-export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-export const DAYS_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+/** Weekday names indexed like Date.getDay() (0 = Sunday). */
+export const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+export const WEEKDAYS_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 export const MEAL_TYPES = ["dinner", "lunch", "breakfast", "snack", "dessert"]
 export const CATEGORIES = [
   "Produce", "Meat & Seafood", "Dairy & Eggs", "Bakery", "Pantry", "Frozen",
@@ -16,11 +17,10 @@ export const parseISO = (s: string) => {
   return new Date(y, m - 1, d)
 }
 
-/** Monday of the week containing `d` (local time). */
+/** First day of the week containing `d`: the configured shopping day on or before `d` (local time). */
 export function weekStartOf(d: Date = new Date()): string {
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-  const dow = (x.getDay() + 6) % 7 // Mon=0
-  x.setDate(x.getDate() - dow)
+  x.setDate(x.getDate() - ((x.getDay() - getSettings().shoppingDay + 7) % 7))
   return iso(x)
 }
 
@@ -30,8 +30,21 @@ export function addWeeks(week: string, n: number): string {
   return iso(d)
 }
 
-export function todayIndex(): number {
-  return (new Date().getDay() + 6) % 7
+/** The week being planned: the one after the current one. */
+export const planWeek = () => addWeeks(weekStartOf(), 1)
+
+/** Day-slot names for a week, starting from the weekday that week begins on (meal `day` 0 = week start). */
+export function dayNames(week: string, long = false): string[] {
+  const start = parseISO(week).getDay()
+  const names = long ? WEEKDAYS_LONG : WEEKDAYS
+  return Array.from({ length: 7 }, (_, i) => names[(start + i) % 7])
+}
+
+/** Which day slot (0–6) today is within `week`; null if today is outside it. */
+export function todayIndex(week: string): number | null {
+  const ms = parseISO(iso(new Date())).getTime() - parseISO(week).getTime()
+  const i = Math.round(ms / 86400000)
+  return i >= 0 && i < 7 ? i : null
 }
 
 export function weekLabel(week: string): string {

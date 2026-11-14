@@ -76,6 +76,9 @@ const patch = <T,>(p: string, b: unknown) => req<T>("PATCH", p, b)
 const put = <T,>(p: string, b: unknown) => req<T>("PUT", p, b)
 const del = <T,>(p: string) => req<T>("DELETE", p)
 
+/** Household settings; values are strings on the wire. */
+export interface HouseholdConfig { shopping_day: string }
+
 export const api = {
   config: () => get<{ registration: "open" | "invite" | "closed" }>("/config"),
   me: () => get<User>("/me"),
@@ -84,6 +87,8 @@ export const api = {
   logout: () => post<void>("/auth/logout"),
 
   household: () => get<Household>("/household"),
+  householdConfig: () => get<HouseholdConfig>("/household/config"),
+  updateHouseholdConfig: (b: Partial<HouseholdConfig>) => patch<HouseholdConfig>("/household/config", b),
   renameHousehold: (name: string) => patch<Household>("/household", { name }),
   joinHousehold: (code: string) => post<Household>("/household/join", { code }),
   resetInvite: () => post<Household>("/household/invite-code/reset"),

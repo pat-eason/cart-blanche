@@ -7,7 +7,7 @@ import { Spinner } from "../components/ui"
 import { api } from "../lib/api"
 import { useAuth } from "../lib/auth"
 import { useMenuCache, useMenuWeek, useRecipes } from "../lib/hooks"
-import { DAYS_LONG, greeting, minutesLabel, money, todayIndex, weekLabel, weekStartOf } from "../lib/util"
+import { greeting, minutesLabel, money, todayIndex, weekLabel, weekStartOf, WEEKDAYS_LONG } from "../lib/util"
 
 const fade = (i: number) => ({ initial: { opacity: 0, y: 18 }, animate: { opacity: 1, y: 0 }, transition: { delay: i * 0.07, type: "spring" as const, stiffness: 200, damping: 22 } })
 
@@ -32,7 +32,7 @@ export default function Dashboard() {
   })
 
   if (menuQ.isLoading || recipesQ.isLoading) return <Spinner />
-  const today = menu?.meals.filter((m) => m.day === todayIndex()) ?? []
+  const today = menu?.meals.filter((m) => m.day === todayIndex(week)) ?? []
   const pct = menu && menu.itemCount ? (menu.checkedCount / menu.itemCount) * 100 : 0
   const suggestions = (recs.data ?? []).filter((s) => !menu?.meals.some((m) => m.recipeId === s.recipe.id)).slice(0, 3)
   const noRecipes = (recipesQ.data?.length ?? 0) === 0
@@ -40,7 +40,7 @@ export default function Dashboard() {
   return (
     <div className="stack" style={{ gap: "1.4rem" }}>
       <motion.div {...fade(0)} className="page-head" style={{ marginBottom: 0 }}>
-        <div><div className="eyebrow">{weekLabel(week)}</div><h1>{greeting()}, {user?.name.split(" ")[0]}.</h1><p className="muted">{DAYS_LONG[todayIndex()]} — what's the plan?</p></div>
+        <div><div className="eyebrow">{weekLabel(week)}</div><h1>{greeting()}, {user?.name.split(" ")[0]}.</h1><p className="muted">{WEEKDAYS_LONG[new Date().getDay()]} — what's the plan?</p></div>
       </motion.div>
 
       <div className="split">
@@ -54,13 +54,13 @@ export default function Dashboard() {
                 {menu.meals.length > 6 && <span className="chip" style={{ background: "rgba(238,229,212,.16)", color: "var(--paper)" }}>+{menu.meals.length - 6}</span>}
               </div>
               {menu.budget != null && <div className="small muted" style={{ marginBottom: 12 }}>{menu.estCost > menu.budget ? `${money(menu.estCost - menu.budget)} over` : `${money(menu.budget - menu.estCost)} under`} your {money(menu.budget)} budget</div>}
-              <div className="row wrap"><Link to="/plan" className="btn primary">Edit menu</Link><Link to="/shop" className="btn">Open list</Link></div>
+              <div className="row wrap"><Link to={`/plan?week=${week}`} className="btn primary">Edit menu</Link><Link to="/shop" className="btn">Open list</Link><Link to="/plan" className="btn ghost">Plan next week</Link></div>
             </>
           ) : (
             <>
               <h2 style={{ margin: "6px 0 8px" }}>Nothing planned yet</h2>
               <p className="muted" style={{ marginBottom: 14, maxWidth: 330 }}>Pick 5–6 dinners and we'll build the grocery list from them.</p>
-              <Link to="/plan" className="btn primary"><Icon name="plus" size={16} />Plan this week</Link>
+              <Link to={`/plan?week=${week}`} className="btn primary"><Icon name="plus" size={16} />Plan this week</Link>
             </>
           )}
           <Bag mood={menu?.meals.length ? "full" : "happy"} size={120} className="hero-bag wobble" />

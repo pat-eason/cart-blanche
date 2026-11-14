@@ -2,6 +2,8 @@ import { motion } from "framer-motion"
 import type { ReactNode } from "react"
 import { NavLink, Link, useLocation } from "react-router-dom"
 import { useAuth } from "../lib/auth"
+import { useHouseholdConfig } from "../lib/hooks"
+import { Spinner } from "./ui"
 import { Bag } from "./Bag"
 import { Icon } from "./Icon"
 
@@ -26,6 +28,7 @@ const TABS = [
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
   const { pathname } = useLocation() // router-relative: excludes the base path
+  const cfg = useHouseholdConfig() // week math depends on it, so hold the page until it loads
   return (
     <div className="shell">
       <aside className="side">
@@ -44,7 +47,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <button className="btn ghost small" onClick={logout}><Icon name="logout" size={16} />Sign out</button>
         </div>
       </aside>
-      <main className="main">{children}</main>
+      <main className="main">{cfg.isLoading ? <Spinner /> : children}</main>
       <nav className="tabbar" aria-label="Main">
         {TABS.map((n) => (
           <NavLink key={n.to} to={n.to} end={n.end}

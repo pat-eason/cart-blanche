@@ -23,6 +23,7 @@ type server struct {
 	regCode      string
 	proxyHops    int
 	codeGuard    *guard
+	config       *configService
 }
 
 type ctxKey int
@@ -42,7 +43,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := &server{db: db, secureCookie: env("COOKIE_SECURE", "false") == "true", cookiePath: env("COOKIE_PATH", "/")}
+	s := &server{db: db, config: newConfigService(db), secureCookie: env("COOKIE_SECURE", "false") == "true", cookiePath: env("COOKIE_PATH", "/")}
 	s.regMode = strings.ToLower(strings.TrimSpace(env("REGISTRATION_MODE", "open")))
 	s.regCode = strings.TrimSpace(os.Getenv("REGISTRATION_INVITE_CODE"))
 	s.proxyHops, _ = strconv.Atoi(env("TRUSTED_PROXY_HOPS", "0"))
@@ -191,6 +192,8 @@ func (s *server) routes(m *http.ServeMux) {
 	// household
 	m.HandleFunc("GET /api/household", s.authed(s.getHousehold))
 	m.HandleFunc("PATCH /api/household", s.authed(s.updateHousehold))
+	m.HandleFunc("GET /api/household/config", s.authed(s.getConfig))
+	m.HandleFunc("PATCH /api/household/config", s.authed(s.patchConfig))
 	m.HandleFunc("POST /api/household/join", s.authed(s.joinHousehold))
 	m.HandleFunc("POST /api/household/invite-code/reset", s.authed(s.resetInvite))
 
